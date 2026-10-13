@@ -18,23 +18,6 @@ Exemples :
 - `flux.simulate`
 - `event.get_session`
 
-Contrat minimal :
-
-```yaml
-key: tasks.create
-version: 1
-input:
-  workspace_id: uuid
-  context_id: uuid
-  title: string
-  description: string|null
-output:
-  object_id: uuid
-  task_id: uuid
-permissions:
-  - task.create
-```
-
 Principes :
 
 - validation d'entrée par le module propriétaire ;
@@ -47,68 +30,22 @@ Principes :
 
 Un Event annonce qu'un fait métier a déjà eu lieu. L'émetteur n'attend pas de réponse.
 
-Exemples :
-
-- `task.created`
-- `task.completed`
-- `shift.published`
-- `event.published`
-- `session.cancelled`
-- `form.submitted`
-- `flux.simulation.completed`
-
-Envelope standard :
-
-```yaml
-id: uuid
-name: form.submitted
-version: 1
-workspace_id: uuid
-context_id: uuid|null
-object_id: uuid|null
-occurred_at: timestamp
-actor_user_id: uuid|null
-payload: {}
-```
+Exemples : `task.created`, `task.completed`, `shift.published`, `event.published`, `session.cancelled`, `form.submitted`, `flux.simulation.completed`.
 
 Les événements persistants passent par `outbox_events` dans la même transaction que l'opération métier. Ils ne sont publiés qu'après commit.
 
 Principes :
 
 - un Event décrit le passé ;
-- son nom ne doit pas être une commande (`task.created`, pas `create.task`) ;
 - payload minimal et stable ;
 - pour les données riches, le consommateur appelle ensuite une Action/Provider autorisé ;
-- les consommateurs doivent être idempotents : recevoir deux fois le même `event.id` ne doit pas produire deux effets irréversibles.
+- les consommateurs doivent être idempotents sur `event.id`.
 
 ## 3. Provider — capacité de lecture substituable
 
 Un Provider expose une capacité ou un jeu de données sans imposer quel module le fournit.
 
-Exemples :
-
-- `event.sessions`
-- `staff.availability`
-- `resource.capacity`
-- `capacity.operational`
-- futur `cost.workforce`
-
-Contrat conceptuel :
-
-```yaml
-key: staff.availability
-version: 1
-input:
-  workspace_id: uuid
-  context_id: uuid
-  start_at: timestamp
-  end_at: timestamp
-output:
-  people:
-    - person_object_id: uuid
-      available: boolean
-      metadata: {}
-```
+Exemples : `event.sessions`, `staff.availability`, `resource.capacity`, `capacity.operational`, futur `cost.workforce`.
 
 Principes :
 
@@ -117,6 +54,8 @@ Principes :
 - le registre connaît les Providers actifs du Workspace ;
 - l'absence d'un Provider optionnel ne doit pas casser le module consommateur lorsqu'un fallback manuel est prévu ;
 - un Provider reste read-only du point de vue du consommateur.
+
+`resource.capacity` est un contrat **réservé** pour les futurs usages génériques de Resource. Aucun module V1 n'est obligé de le fournir. Flux Lite doit fonctionner sans ce Provider.
 
 ## 4. Dépendances
 
@@ -140,30 +79,25 @@ optional_capabilities:
 
 Sans ces Providers, Flux Lite reste utilisable par saisie manuelle.
 
+## 4 bis. Consumers déclarés et Automation
+
+L'infrastructure Event Bus existe en V1, mais l'éditeur d'Automation utilisateur reste prévu pour V1.1.
+
+- `events.listens` déclare uniquement les consumers réellement implémentés ;
+- une Action utilisée par un consumer doit être déclarée dans les dépendances contractuelles du module ;
+- aucun comportement métier cross-module n'est activé implicitement parce qu'un Event existe ;
+- la section `automation` du manifest est déclarative en V1 : elle expose les futurs triggers/actions mais n'exécute pas de règles WHEN/IF/THEN ;
+- aucun consumer métier cross-module n'est livré par défaut en V1 ; tout ajout doit être explicite, documenté, testé et idempotent.
+
 ## 5. ObjectRef standard
 
-Les contrats utilisent l'Object Registry pour adresser génériquement un objet :
-
-```yaml
-object_id: uuid
-```
-
-Le consommateur ne transporte pas un triplet `module/type/id` comme identité principale. Si nécessaire, `module_key` et `object_type` peuvent être retournés comme métadonnées descriptives.
+Les contrats utilisent l'Object Registry pour adresser génériquement un objet : `object_id: uuid`.
 
 ## 6. Context standard
 
-Les appels contextuels utilisent :
-
-```yaml
-workspace_id: uuid
-context_id: uuid|null
-```
-
-`workspace_id` reste toujours explicite pour l'isolation multi-tenant. `context_id` est requis dès que l'opération vit dans un Context.
+Les appels contextuels utilisent `workspace_id` et, lorsque nécessaire, `context_id`. `workspace_id` reste toujours explicite pour l'isolation multi-tenant.
 
 ## 7. Erreurs standard
-
-Les Actions/Providers doivent retourner des erreurs métier normalisées :
 
 - `VALIDATION_ERROR`
 - `NOT_FOUND`
@@ -173,28 +107,16 @@ Les Actions/Providers doivent retourner des erreurs métier normalisées :
 - `MODULE_DISABLED`
 - `INTERNAL_ERROR`
 
-Une erreur contient un `code`, un message exploitable par l'UI et éventuellement des détails structurés. Les détails internes/SQL ne sont jamais exposés.
+Les détails internes/SQL ne sont jamais exposés.
 
 ## 8. Versionnement
 
-V1 utilise un entier de version par contrat (`version: 1`).
-
-- ajout d'un champ de sortie optionnel : compatible ;
-- ajout d'un champ d'entrée obligatoire : incompatible → nouvelle version ;
-- changement de sens/type : incompatible → nouvelle version.
-
-Pas besoin de construire un système complexe de négociation de versions en V1 ; le registre doit néanmoins stocker la version pour permettre l'évolution.
+V1 utilise un entier de version par contrat. Un ajout de sortie optionnelle est compatible ; un nouvel input obligatoire ou un changement de sens/type exige une nouvelle version.
 
 ## 9. Permissions
 
-Un appel inter-module ne contourne jamais les permissions. Le contexte d'exécution transporte l'utilisateur/acteur. Le module propriétaire décide si l'opération est autorisée.
-
-Les workers système utilisent une identité système explicitement tracée, pas un faux utilisateur administrateur.
+Un appel inter-module ne contourne jamais les permissions. Le module propriétaire décide si l'opération est autorisée. Les workers système utilisent une identité système explicitement tracée.
 
 ## 10. Frontière transactionnelle
 
-Une transaction DB ne doit pas englober arbitrairement les tables de plusieurs modules.
-
-Si Tasks crée une Task après `form.submitted`, Forms a déjà commité sa Submission. L'Automation/consumer appelle ensuite `tasks.create`. En cas d'échec, la Submission reste valide et l'échec peut être retenté/observé.
-
-Cela évite de créer un monolithe fortement couplé malgré une base de données commune.
+Une transaction DB ne doit pas englober arbitrairement les tables de plusieurs modules. Une opération déclenchée après un Event utilise le contrat public du module cible après commit de l'objet source. En cas d'échec, l'objet source reste valide et le traitement peut être retenté/observé.
