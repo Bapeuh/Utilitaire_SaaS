@@ -18,6 +18,7 @@ required:
 optional:
   modules: []
   capabilities: []
+  actions: []
 
 owns:
   objects:
@@ -71,12 +72,14 @@ automation:
 
 1. `id` est stable et ne change pas lors d'un renommage marketing.
 2. La version du module suit SemVer ; la version des contrats inter-modules est indépendante.
-3. `owns.objects` indique la responsabilité métier, pas nécessairement toutes les tables SQL internes.
+3. `owns.objects` indique les **types d'objets métier enregistrés dans l'Object Registry dont le module est propriétaire**. Il ne décrit ni toutes les tables SQL internes ni les objets Core simplement référencés par le module.
 4. Les permissions sont déclarées par le module et enregistrées dans Core.
-5. Actions, Events et Providers doivent correspondre à des contrats enregistrés et testables.
+5. Actions, Events et Providers correspondent à des contrats enregistrés et testables.
 6. Une route/widget disparaît de l'UI lorsque le module est désactivé ; les données ne sont pas supprimées.
 7. Une dépendance optionnelle ne peut pas être nécessaire au démarrage du module.
 8. L'installation vérifie les dépendances requises et les versions compatibles.
+9. `events.listens` déclare uniquement les consumers réellement implémentés. Aucun abonnement métier n'est implicite.
+10. `automation.triggers` et `automation.actions` décrivent ce qui pourra être exposé au futur moteur d'Automation ; cette section reste déclarative en V1.
 
 ## Manifest V1 par module
 
@@ -89,7 +92,9 @@ automation:
 
 ### Scheduling
 
-- required: Core + Resource Service
+- required: Core
+- optional: Resource Service
+- les Shifts sont affectés directement à des `Person`; aucune Resource n'est requise pour un Shift V1
 - provides: `staff.availability`, `staff.coverage`
 - emits: `shift.created`, `shift.published`, `shift.assignment.updated`
 - actions: create/update/publish/assign person
@@ -113,24 +118,17 @@ automation:
 
 - required: Core
 - optional providers: `event.sessions`, `staff.availability`, `resource.capacity`
+- `resource.capacity` est un contrat réservé : aucun provider V1 n'est obligatoire
 - provides: `capacity.operational`, `flux.simulation.result`
 - emits: `flux.simulation.completed`, `flux.simulation.failed`
 - actions: create scenario, simulate, get result
 
+## Consumers V1
+
+Les manifests peuvent déclarer `events.listens` et des Actions optionnelles nécessaires à leurs consumers. Aucun consumer métier cross-module n'est livré par défaut en V1. Chaque consumer ajouté doit être explicite, documenté, testé et idempotent.
+
 ## Activation
 
-`workspace_modules` conserve l'état :
+`workspace_modules` conserve l'état : installed, enabled ou disabled.
 
-- installed
-- enabled
-- disabled
-
-Désactiver :
-
-- masque routes/widgets ;
-- désenregistre les Providers actifs ;
-- empêche les Actions utilisateur du module ;
-- conserve toutes les données ;
-- ne supprime pas les Events historiques.
-
-Réactiver restaure le module et ses données.
+Désactiver un module masque ses routes/widgets, désenregistre ses Providers actifs, empêche ses Actions utilisateur, conserve ses données et ne supprime pas ses Events historiques. Réactiver restaure le module et ses données.
