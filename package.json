@@ -1,0 +1,1 @@
+{"name":"utilitaire-saas","private":true,"packageManager":"pnpm@10.19.0","engines":{"node":">=22"},"scripts":{"dev":"turbo dev","build":"turbo build","lint":"turbo lint","typecheck":"turbo typecheck","test":"turbo test","check":"pnpm lint && pnpm typecheck && pnpm test && pnpm build"},"devDependencies":{"turbo":"^2.5.0","typescript":"^5.9.0"}}

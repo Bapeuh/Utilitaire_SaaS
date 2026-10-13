@@ -1,0 +1,1 @@
+{"name":"@utilitaire/contracts","private":true,"type":"module","exports":"./src/index.ts","scripts":{"build":"tsc -p tsconfig.json","lint":"eslint src --max-warnings=0","typecheck":"tsc --noEmit","test":"vitest run"},"dependencies":{"zod":"^4.1.0"},"devDependencies":{"eslint":"^9.0.0","typescript":"^5.9.0","vitest":"^3.2.0"}}
