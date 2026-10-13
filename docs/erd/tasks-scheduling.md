@@ -36,7 +36,7 @@ erDiagram
     SHIFT_PERSON_ASSIGNMENT ||--o{ SHIFT_BREAK : breaks
 
     PERSON ||--o{ PERSON_AVAILABILITY : availability
-    PERSON o|--o| RESOURCE : schedulable_resource
+    PERSON o|--o| RESOURCE : optional_schedulable_resource
 ```
 
 ## Tasks — invariants
@@ -50,6 +50,10 @@ erDiagram
 - `estimated_minutes` représente un effort de travail, pas une durée calendaire.
 - La récurrence n'est pas implémentée dans Tasks.
 
+### Déplacement de Context
+
+Déplacer une Task déplace atomiquement toute sa descendance. Une Phase devenue externe est détachée ; les liens vers des Milestones hors du nouveau Context sont retirés ; les TaskDependencies sont conservées car elles peuvent traverser les Contexts. Comments, Files, Tags et Activity restent attachés via Object Registry.
+
 ## Scheduling — invariants
 
 - Un Shift rattaché à un Schedule partage son Context.
@@ -60,9 +64,10 @@ erDiagram
 - Les conflits de Shift sont détectés par le service Scheduling et peuvent être avertis ou bloqués selon la politique ; ils ne sont pas globalement interdits par la DB.
 - Une pause planifiée appartient à une affectation individuelle, pas au Shift entier.
 - Scheduling fonctionne sans module HR.
+- Scheduling V1 affecte directement `Person`. Le lien `Person ↔ Resource` est optionnel et prépare les futurs usages génériques ; il n'est pas requis pour créer une affectation de Shift.
 
 ## Périmètre V1
 
 Inclus : List/Kanban/Calendar, Gantt simple, shifts, requirements, affectations, pauses, disponibilités et détection de conflits.
 
-Différé : templates, récurrence native, workload avancé, auto-scheduling, shift bidding/swapping, time tracking, payroll et matching avancé par compétences.
+Différé : templates, récurrence native, workload avancé, auto-scheduling, shift bidding/swapping, time tracking, payroll, matching avancé par compétences, ResourceBooking et ResourceAllocation.
