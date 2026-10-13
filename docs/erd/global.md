@@ -9,6 +9,7 @@ erDiagram
     WORKSPACE ||--|| CONTEXT : root_context
     WORKSPACE ||--o{ OBJECT : owns
     WORKSPACE ||--o{ PERSON : owns
+    WORKSPACE ||--o{ ORGANIZATION : owns
     WORKSPACE ||--o{ TEAM : owns
 
     CONTEXT ||--o{ CONTEXT : parent_of
@@ -17,6 +18,7 @@ erDiagram
     SCOPE }o--o{ PROJECT : project_scopes
 
     OBJECT ||--o| PERSON : identifies
+    OBJECT ||--o| ORGANIZATION : identifies
     OBJECT ||--o| TEAM : identifies
     OBJECT ||--o| SCOPE : identifies
     OBJECT ||--o| PROJECT : identifies
@@ -37,6 +39,7 @@ erDiagram
     CONTEXT ||--o{ FORM : contains
     CONTEXT ||--o{ FLUX_SCENARIO : contains
 
+    PERSON }o--o{ ORGANIZATION : affiliations
     PERSON }o--o{ TEAM : membership
     PERSON o|--o| RESOURCE : can_be
 
@@ -82,6 +85,7 @@ erDiagram
 - Les relations structurelles internes restent des FK de domaine : Session → Event, Shift → Schedule, Answer → Submission, etc.
 - Les liens optionnels entre domaines utilisent `relations` / `object_id`, et les demandes de données dynamiques passent par Providers.
 - Aucun module V1 ne doit lire directement les tables privées d'un autre module.
+- `Person ↔ Resource` est optionnel en V1 ; Scheduling affecte directement des Persons.
 
 ## Domaines V1
 
