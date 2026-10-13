@@ -12,14 +12,16 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 - lint/format/test/build ;
 - Docker Compose PostgreSQL + stockage S3-compatible local ;
 - variables d'environnement documentées ;
-- CI minimale.
+- CI minimale ;
+- contrôle automatique des frontières de modules/imports dans lint/CI.
 
 ### Acceptation
 - installation depuis clone documentée ;
 - une commande lance l'environnement dev ;
 - une commande exécute lint + types + tests ;
 - web appelle un endpoint health API ;
-- CI reproduit ces contrôles.
+- CI reproduit ces contrôles ;
+- une dépendance interdite entre modules fait échouer la CI.
 
 ---
 
@@ -29,12 +31,15 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 - Better Auth validé/intégré ;
 - Workspace/User/WorkspaceUser ;
 - Person ;
+- Organization ;
+- Team / TeamMember ;
 - Context ;
 - Object Registry ;
 - Scope ;
 - Project ;
 - permissions + rôles système ;
-- Activity + Outbox infrastructure ;
+- UserAccessGrant + TeamAccessGrant ;
+- Activity + Outbox infrastructure avec retry/dead-letter ;
 - module registry minimal.
 
 ### UI
@@ -49,6 +54,8 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 - aucune lecture cross-workspace n'est possible ;
 - un Project possède son Context et Object atomiquement ;
 - les rôles Administrator/Manager/Member/Guest produisent des contrôles API réels ;
+- TeamAccessGrant est fonctionnel ;
+- outbox at-least-once, idempotence et dead-letter sont testables ;
 - PWA installable ;
 - navigation utilisable sur téléphone.
 
@@ -65,7 +72,9 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 - checklist ;
 - comments ;
 - files ;
-- tags.
+- tags ;
+- Relations génériques ;
+- Notifications in-app.
 
 ### UI
 - liste ;
@@ -76,7 +85,10 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 ### Acceptation
 - Task peut vivre en Workspace/Scope/Project ;
 - parent/enfant même Context ;
-- déplacement de Context conserve commentaires/fichiers/tags ;
+- déplacer une Task déplace atomiquement son sous-arbre ;
+- Phase hors nouveau Context détachée et liens Milestone externes retirés ;
+- dépendances cross-context conservées ;
+- commentaires/fichiers/tags restent attachés via Object Registry ;
 - Team assignment reste une affectation à la Team ;
 - permissions appliquées côté API.
 
@@ -90,7 +102,7 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 - TaskDependency ;
 - calendrier ;
 - Gantt basique ;
-- Teams/membership finalisés.
+- finalisation des vues/UX Teams et memberships.
 
 ### Acceptation
 - phases/milestones respectent le Context ;
@@ -105,6 +117,7 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 
 ### Fonctionnel
 - JobRole ;
+- Resource Service minimal (`Resource` seulement, sans Booking/Allocation) ;
 - Schedule ;
 - Shift ;
 - ShiftRequirement ;
@@ -122,10 +135,12 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 
 ### Acceptation
 - Scheduling fonctionne sans HR ;
+- Scheduling fonctionne sans qu'une Person possède une Resource ;
 - une Person ne peut avoir deux assignments identiques sur le même Shift ;
 - chevauchements détectés sans être universellement bloqués ;
 - pauses individualisées ;
-- Open Shift possible via requirements sans assignment.
+- Open Shift possible via requirements sans assignment ;
+- Resource Service est disponible comme fondation optionnelle sans ResourceBooking/Allocation.
 
 ---
 
@@ -188,6 +203,7 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 
 ### Fonctionnel
 - FluxScenario ;
+- un FluxFlowModel 1:1 par Scenario ;
 - Session model ;
 - Freeflow model ;
 - OperatingPeriods ;
@@ -201,6 +217,9 @@ Chaque lot doit laisser `main` déployable après merge. Ne pas démarrer un mod
 
 ### Acceptation
 - Flux fonctionne avec tous les autres modules utilisateur désactivés ;
+- Flux fonctionne sans aucun Provider optionnel ;
+- un Provider de test peut enrichir les inputs sans accès aux tables du provider ;
+- `resource.capacity` peut être absent en V1 ;
 - mêmes inputs + même engine version donnent le même résultat ;
 - historique des simulations n'est pas modifié lorsque Scenario change ;
 - Session et Freeflow sont couverts par tests déterministes ;
