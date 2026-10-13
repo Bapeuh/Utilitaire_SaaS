@@ -21,10 +21,16 @@ Autorisé :
 ```text
 Flux -> ProviderRegistry -> Scheduling provider
 Forms -> ActionRegistry -> Tasks.create
-Module -> EventBus -> event consumers
+Module -> EventBus -> declared consumers
 ```
 
 Un module peut utiliser Core/Core Services selon leurs contrats publics.
+
+### Enforcement automatique
+
+Les frontières ne reposent pas uniquement sur la documentation. Le Lot 0 doit configurer une règle d'analyse statique des imports/dépendances (ESLint boundaries, dependency-cruiser ou outil équivalent retenu au bootstrap). La CI échoue lorsqu'un module importe une couche privée interdite d'un autre module.
+
+Les packages publics/contrats autorisés doivent être explicitement identifiables afin que Codex ne contourne pas la règle par des chemins relatifs.
 
 ## 3. Database
 
@@ -42,9 +48,15 @@ Ne pas transformer `objects` en table métier générique. Elle contient uniquem
 
 Context est réservé aux lieux organisationnels Workspace/Scope/Project. Ne pas créer un Context pour chaque Event, Task, Session, Form ou Shift.
 
-## 6. Transactions et événements
+## 6. Transactions, événements et consumers
 
-Lorsqu'un objet enregistré est créé : Object Registry + ligne métier + Activity/Outbox doivent être cohérents transactionnellement. Ne pas publier un événement externe avant commit.
+Lorsqu'un objet enregistré est créé : Object Registry + ligne métier + Activity/Outbox doivent être cohérents transactionnellement. Ne pas publier un événement avant commit.
+
+La livraison des événements V1 est at-least-once. Tout consumer avec effet doit être idempotent sur `event.id`.
+
+`events.listens` doit correspondre à des consumers réellement implémentés. Ne pas créer d'orchestration métier implicite. La section `automation` des manifests est déclarative jusqu'au moteur d'Automation V1.1.
+
+Les échecs de publication/traitement doivent respecter la politique retry/dead-letter documentée dans `docs/architecture/04-integrity-rules.md`.
 
 ## 7. API et validation
 
@@ -77,11 +89,15 @@ Pour toute fonctionnalité significative :
 
 Les moteurs purs (notamment Flux) doivent être fortement couverts par tests déterministes.
 
+Les tests d'architecture/CI doivent également vérifier les imports inter-modules interdits.
+
 ## 11. Scope discipline
 
 Ne pas implémenter une fonctionnalité V1.1/V2 parce qu'elle semble facile pendant un lot V1. Préparer une extension est acceptable ; implémenter son produit complet ne l'est pas.
 
-Exemples hors V1 : Registration, ResourceBooking, full automation editor, native apps, full offline sync, advanced HR.
+Exemples hors V1 : Registration, ResourceBooking, ResourceAllocation, full automation editor, native apps, full offline sync, advanced HR.
+
+Resource Service peut exister comme fondation V1, mais Scheduling affecte directement des Persons et ne doit pas imposer la création d'une Resource pour chaque Person.
 
 ## 12. Pull requests
 
