@@ -311,6 +311,142 @@ export const jobRoles = pgTable(
   (table) => [unique("job_roles_workspace_id_id_unique").on(table.workspaceId, table.id)],
 );
 
+export const permissions = pgTable(
+  "permissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    key: text("key").notNull().unique(),
+    moduleKey: text("module_key").notNull(),
+    objectType: text("object_type").notNull(),
+    action: text("action").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("permissions_capability_unique").on(table.moduleKey, table.objectType, table.action),
+  ],
+);
+
+export const accessRoles = pgTable(
+  "access_roles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    systemKey: workspaceUserRole("system_key"),
+    ...timestamps,
+  },
+  (table) => [
+    unique("access_roles_workspace_id_id_unique").on(table.workspaceId, table.id),
+    unique("access_roles_workspace_name_unique").on(table.workspaceId, table.name),
+    unique("access_roles_workspace_system_key_unique").on(table.workspaceId, table.systemKey),
+  ],
+);
+
+export const accessRolePermissions = pgTable(
+  "access_role_permissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    accessRoleId: uuid("access_role_id").notNull(),
+    permissionId: uuid("permission_id")
+      .notNull()
+      .references(() => permissions.id, { onDelete: "restrict" }),
+    ...timestamps,
+  },
+  (table) => [
+    unique("access_role_permissions_unique").on(
+      table.workspaceId,
+      table.accessRoleId,
+      table.permissionId,
+    ),
+    foreignKey({
+      name: "access_role_permissions_role_workspace_fk",
+      columns: [table.workspaceId, table.accessRoleId],
+      foreignColumns: [accessRoles.workspaceId, accessRoles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const userAccessGrants = pgTable(
+  "user_access_grants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    userId: uuid("user_id").notNull(),
+    contextId: uuid("context_id").notNull(),
+    accessRoleId: uuid("access_role_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("user_access_grants_unique").on(
+      table.workspaceId,
+      table.userId,
+      table.contextId,
+      table.accessRoleId,
+    ),
+    index("user_access_grants_lookup_idx").on(table.workspaceId, table.userId, table.contextId),
+    foreignKey({
+      name: "user_access_grants_workspace_user_fk",
+      columns: [table.workspaceId, table.userId],
+      foreignColumns: [workspaceUsers.workspaceId, workspaceUsers.userId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "user_access_grants_context_workspace_fk",
+      columns: [table.workspaceId, table.contextId],
+      foreignColumns: [contexts.workspaceId, contexts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "user_access_grants_role_workspace_fk",
+      columns: [table.workspaceId, table.accessRoleId],
+      foreignColumns: [accessRoles.workspaceId, accessRoles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const teamAccessGrants = pgTable(
+  "team_access_grants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    teamId: uuid("team_id").notNull(),
+    contextId: uuid("context_id").notNull(),
+    accessRoleId: uuid("access_role_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("team_access_grants_unique").on(
+      table.workspaceId,
+      table.teamId,
+      table.contextId,
+      table.accessRoleId,
+    ),
+    index("team_access_grants_lookup_idx").on(table.workspaceId, table.teamId, table.contextId),
+    foreignKey({
+      name: "team_access_grants_team_workspace_fk",
+      columns: [table.workspaceId, table.teamId],
+      foreignColumns: [teams.workspaceId, teams.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "team_access_grants_context_workspace_fk",
+      columns: [table.workspaceId, table.contextId],
+      foreignColumns: [contexts.workspaceId, contexts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "team_access_grants_role_workspace_fk",
+      columns: [table.workspaceId, table.accessRoleId],
+      foreignColumns: [accessRoles.workspaceId, accessRoles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export const scopes = pgTable(
   "scopes",
   {
@@ -393,6 +529,16 @@ export type TeamMember = typeof teamMembers.$inferSelect;
 export type NewTeamMember = typeof teamMembers.$inferInsert;
 export type JobRole = typeof jobRoles.$inferSelect;
 export type NewJobRole = typeof jobRoles.$inferInsert;
+export type Permission = typeof permissions.$inferSelect;
+export type NewPermission = typeof permissions.$inferInsert;
+export type AccessRole = typeof accessRoles.$inferSelect;
+export type NewAccessRole = typeof accessRoles.$inferInsert;
+export type AccessRolePermission = typeof accessRolePermissions.$inferSelect;
+export type NewAccessRolePermission = typeof accessRolePermissions.$inferInsert;
+export type UserAccessGrant = typeof userAccessGrants.$inferSelect;
+export type NewUserAccessGrant = typeof userAccessGrants.$inferInsert;
+export type TeamAccessGrant = typeof teamAccessGrants.$inferSelect;
+export type NewTeamAccessGrant = typeof teamAccessGrants.$inferInsert;
 export type Scope = typeof scopes.$inferSelect;
 export type NewScope = typeof scopes.$inferInsert;
 export type Project = typeof projects.$inferSelect;
