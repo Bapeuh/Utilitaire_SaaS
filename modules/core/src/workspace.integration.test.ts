@@ -66,7 +66,6 @@ describe("Core workspace creation", () => {
         select id, name, system_key
         from access_roles
         where workspace_id = ${created.workspaceId}
-        order by system_key
       `;
       const administratorPermissionRows = await client`
         select p.key
@@ -96,7 +95,7 @@ describe("Core workspace creation", () => {
         object_id: created.personObjectId,
       });
       expect(roleRows).toHaveLength(4);
-      expect(roleRows.map((role) => role.system_key)).toEqual([
+      expect(roleRows.map((role) => role.system_key).sort()).toEqual([
         "administrator",
         "guest",
         "manager",
