@@ -36,6 +36,13 @@
       "when": 1791974553390,
       "tag": "0004_real_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791991436605,
+      "tag": "0005_harsh_lethal_legion",
+      "breakpoints": true
     }
   ]
 }
