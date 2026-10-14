@@ -56,6 +56,13 @@ export async function signIn(email: string, password: string) {
   });
 }
 
+export async function signUp(name: string, email: string, password: string) {
+  return request<unknown>("/api/auth/sign-up/email", {
+    method: "POST",
+    body: JSON.stringify({ name, email, password }),
+  });
+}
+
 export async function signOut() {
   return request<unknown>("/api/auth/sign-out", { method: "POST" });
 }
