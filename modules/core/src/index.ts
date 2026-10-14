@@ -19,6 +19,18 @@ export {
 } from "./context-entities.js";
 
 export {
+  addTeamMember,
+  createJobRole,
+  createOrganization,
+  createTeam,
+  getWorkspaceRootContextId,
+  listJobRoles,
+  listOrganizations,
+  listTeamMembers,
+  listTeams,
+} from "./directory.js";
+
+export {
   disableWorkspaceModule,
   enableWorkspaceModule,
   isWorkspaceModuleEnabled,
