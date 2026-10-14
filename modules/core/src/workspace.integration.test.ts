@@ -12,6 +12,10 @@ const databaseUrl =
 const { client, db } = createDatabase(databaseUrl);
 
 async function deleteWorkspace(workspaceId: string) {
+  await client`delete from access_role_permissions where workspace_id = ${workspaceId}`;
+  await client`delete from user_access_grants where workspace_id = ${workspaceId}`;
+  await client`delete from team_access_grants where workspace_id = ${workspaceId}`;
+  await client`delete from access_roles where workspace_id = ${workspaceId}`;
   await client`delete from persons where workspace_id = ${workspaceId}`;
   await client`delete from objects where workspace_id = ${workspaceId}`;
   await client`delete from workspace_users where workspace_id = ${workspaceId}`;
@@ -24,7 +28,7 @@ afterAll(async () => {
 });
 
 describe("Core workspace creation", () => {
-  it("creates Workspace, root Context, administrator membership, Object and Person atomically", async () => {
+  it("creates Workspace foundations and bootstraps system access roles atomically", async () => {
     const userId = randomUUID();
     const email = `core-${randomUUID()}@example.test`;
 
@@ -58,6 +62,23 @@ describe("Core workspace creation", () => {
       const personRows = await client`
         select id, user_id, object_id from persons where id = ${created.personId}
       `;
+      const roleRows = await client`
+        select id, name, system_key
+        from access_roles
+        where workspace_id = ${created.workspaceId}
+        order by system_key
+      `;
+      const administratorPermissionRows = await client`
+        select p.key
+        from access_role_permissions arp
+        join access_roles ar
+          on ar.workspace_id = arp.workspace_id
+         and ar.id = arp.access_role_id
+        join permissions p on p.id = arp.permission_id
+        where arp.workspace_id = ${created.workspaceId}
+          and ar.system_key = 'administrator'
+          and p.key = 'core.workspace.read'
+      `;
 
       expect(workspaceRows).toHaveLength(1);
       expect(contextRows[0]).toMatchObject({
@@ -74,6 +95,15 @@ describe("Core workspace creation", () => {
         user_id: userId,
         object_id: created.personObjectId,
       });
+      expect(roleRows).toHaveLength(4);
+      expect(roleRows.map((role) => role.system_key)).toEqual([
+        "administrator",
+        "guest",
+        "manager",
+        "member",
+      ]);
+      expect(administratorPermissionRows).toHaveLength(1);
+      expect(administratorPermissionRows[0]).toMatchObject({ key: "core.workspace.read" });
     } finally {
       if (workspaceId) {
         await deleteWorkspace(workspaceId);
