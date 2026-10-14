@@ -1,11 +1,12 @@
 import {
   activities,
   createDatabase,
+  outboxDeliveries,
   outboxEvents,
   processedEvents,
   type OutboxEvent,
 } from "@utilitaire/database";
-import { and, asc, eq, lte } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, or } from "drizzle-orm";
 
 export type DomainEvent<T = Record<string, unknown>> = {
   id: string;
@@ -95,7 +96,11 @@ export interface ProcessOutboxOptions {
   consumerKey: string;
   maxAttempts?: number;
   retryDelayMs?: number;
+  lockTimeoutMs?: number;
 }
+
+type ResolvedProcessOutboxOptions = Required<ProcessOutboxOptions>;
+type ProcessStatus = "processed" | "skipped" | "failed" | "dead_letter";
 
 async function alreadyProcessed(tx: Transaction, consumerKey: string, eventId: string) {
   const [row] = await tx
@@ -106,60 +111,132 @@ async function alreadyProcessed(tx: Transaction, consumerKey: string, eventId: s
   return Boolean(row);
 }
 
+async function ensureDelivery(db: Database, eventId: string, consumerKey: string) {
+  const [event] = await db
+    .select({ id: outboxEvents.id, workspaceId: outboxEvents.workspaceId })
+    .from(outboxEvents)
+    .where(eq(outboxEvents.id, eventId))
+    .limit(1);
+
+  if (!event) return null;
+
+  await db
+    .insert(outboxDeliveries)
+    .values({
+      workspaceId: event.workspaceId,
+      eventId: event.id,
+      consumerKey,
+    })
+    .onConflictDoNothing({
+      target: [outboxDeliveries.consumerKey, outboxDeliveries.eventId],
+    });
+
+  return event;
+}
+
 async function processOne(
   db: Database,
   eventId: string,
   handler: OutboxHandler,
-  options: Required<ProcessOutboxOptions>,
-): Promise<"processed" | "skipped" | "failed" | "dead_letter"> {
+  options: ResolvedProcessOutboxOptions,
+): Promise<ProcessStatus> {
+  const ensured = await ensureDelivery(db, eventId, options.consumerKey);
+  if (!ensured) return "skipped";
+
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - options.lockTimeoutMs);
+
   try {
-    const result = await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
       const [event] = await tx
         .select()
         .from(outboxEvents)
-        .where(and(eq(outboxEvents.id, eventId), eq(outboxEvents.status, "pending")))
+        .where(eq(outboxEvents.id, eventId))
         .limit(1);
 
       if (!event) return "skipped" as const;
 
+      const [delivery] = await tx
+        .select()
+        .from(outboxDeliveries)
+        .where(
+          and(
+            eq(outboxDeliveries.consumerKey, options.consumerKey),
+            eq(outboxDeliveries.eventId, eventId),
+          ),
+        )
+        .limit(1);
+
+      if (!delivery || delivery.status === "processed" || delivery.status === "dead_letter") {
+        return "skipped" as const;
+      }
+
+      const claimable = or(
+        and(
+          eq(outboxDeliveries.status, "pending"),
+          lte(outboxDeliveries.availableAt, now),
+        ),
+        and(
+          eq(outboxDeliveries.status, "processing"),
+          lte(outboxDeliveries.lockedAt, staleBefore),
+        ),
+      );
+
       const [claimed] = await tx
-        .update(outboxEvents)
-        .set({ status: "processing", lockedAt: new Date() })
-        .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.status, "pending")))
-        .returning({ id: outboxEvents.id });
+        .update(outboxDeliveries)
+        .set({ status: "processing", lockedAt: now })
+        .where(
+          and(
+            eq(outboxDeliveries.id, delivery.id),
+            claimable,
+          ),
+        )
+        .returning({ id: outboxDeliveries.id });
 
       if (!claimed) return "skipped" as const;
 
       if (await alreadyProcessed(tx, options.consumerKey, event.id)) {
         await tx
-          .update(outboxEvents)
-          .set({ status: "processed", processedAt: new Date(), lockedAt: null, lastError: null })
-          .where(eq(outboxEvents.id, event.id));
+          .update(outboxDeliveries)
+          .set({
+            status: "processed",
+            processedAt: now,
+            lockedAt: null,
+            lastError: null,
+          })
+          .where(eq(outboxDeliveries.id, delivery.id));
         return "processed" as const;
       }
 
       await handler(tx, event);
-      await tx.insert(processedEvents).values({ consumerKey: options.consumerKey, eventId: event.id });
+      await tx.insert(processedEvents).values({
+        workspaceId: event.workspaceId,
+        consumerKey: options.consumerKey,
+        eventId: event.id,
+      });
       await tx
-        .update(outboxEvents)
+        .update(outboxDeliveries)
         .set({
           status: "processed",
-          attempts: event.attempts + 1,
-          processedAt: new Date(),
+          attempts: delivery.attempts + 1,
+          processedAt: now,
           lockedAt: null,
           lastError: null,
         })
-        .where(eq(outboxEvents.id, event.id));
+        .where(eq(outboxDeliveries.id, delivery.id));
 
       return "processed" as const;
     });
-
-    return result;
   } catch (error) {
     const [current] = await db
-      .select({ attempts: outboxEvents.attempts })
-      .from(outboxEvents)
-      .where(eq(outboxEvents.id, eventId))
+      .select({ id: outboxDeliveries.id, attempts: outboxDeliveries.attempts })
+      .from(outboxDeliveries)
+      .where(
+        and(
+          eq(outboxDeliveries.consumerKey, options.consumerKey),
+          eq(outboxDeliveries.eventId, eventId),
+        ),
+      )
       .limit(1);
 
     if (!current) return "failed";
@@ -169,7 +246,7 @@ async function processOne(
     const message = error instanceof Error ? error.message : String(error);
 
     await db
-      .update(outboxEvents)
+      .update(outboxDeliveries)
       .set({
         status: deadLetter ? "dead_letter" : "pending",
         attempts,
@@ -177,7 +254,7 @@ async function processOne(
         lockedAt: null,
         lastError: message.slice(0, 4000),
       })
-      .where(eq(outboxEvents.id, eventId));
+      .where(eq(outboxDeliveries.id, current.id));
 
     return deadLetter ? "dead_letter" : "failed";
   }
@@ -189,20 +266,43 @@ export async function processOutboxBatch(
   options: ProcessOutboxOptions,
   limit = 20,
 ) {
-  const resolved: Required<ProcessOutboxOptions> = {
+  const resolved: ResolvedProcessOutboxOptions = {
     consumerKey: options.consumerKey,
     maxAttempts: options.maxAttempts ?? 5,
     retryDelayMs: options.retryDelayMs ?? 5_000,
+    lockTimeoutMs: options.lockTimeoutMs ?? 60_000,
   };
+
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - resolved.lockTimeoutMs);
 
   const events = await db
     .select({ id: outboxEvents.id })
     .from(outboxEvents)
-    .where(and(eq(outboxEvents.status, "pending"), lte(outboxEvents.availableAt, new Date())))
+    .leftJoin(
+      outboxDeliveries,
+      and(
+        eq(outboxDeliveries.eventId, outboxEvents.id),
+        eq(outboxDeliveries.consumerKey, resolved.consumerKey),
+      ),
+    )
+    .where(
+      or(
+        isNull(outboxDeliveries.id),
+        and(
+          eq(outboxDeliveries.status, "pending"),
+          lte(outboxDeliveries.availableAt, now),
+        ),
+        and(
+          eq(outboxDeliveries.status, "processing"),
+          lte(outboxDeliveries.lockedAt, staleBefore),
+        ),
+      ),
+    )
     .orderBy(asc(outboxEvents.createdAt))
     .limit(limit);
 
-  const results = [] as Array<{ eventId: string; status: "processed" | "skipped" | "failed" | "dead_letter" }>;
+  const results: Array<{ eventId: string; status: ProcessStatus }> = [];
   for (const event of events) {
     results.push({
       eventId: event.id,
