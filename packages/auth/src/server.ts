@@ -10,7 +10,7 @@ const { client, db } = createDatabase(databaseUrl);
 
 export const authDatabaseClient = client;
 
-export const auth: ReturnType<typeof betterAuth> = betterAuth({
+export const auth = betterAuth({
   appName: "Utilitaire SaaS",
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   trustedOrigins: [process.env.WEB_URL ?? "http://localhost:5173"],
