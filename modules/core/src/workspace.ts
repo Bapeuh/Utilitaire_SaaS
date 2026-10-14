@@ -40,7 +40,7 @@ const corePermissions = [
   { key: "core.scope.read", moduleKey: "core", objectType: "scope", action: "read" },
   { key: "core.project.create", moduleKey: "core", objectType: "project", action: "create" },
   { key: "core.project.read", moduleKey: "core", objectType: "project", action: "read" },
-] as const;
+];
 
 export async function createWorkspaceForUser(
   db: Database,
