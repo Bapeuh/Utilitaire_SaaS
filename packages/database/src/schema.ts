@@ -179,7 +179,7 @@ export const persons = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "restrict" }),
     objectId: uuid("object_id").notNull().unique(),
-    userId: uuid("user_id").references(() => users.id, { onDelete: "restrict" }),
+    userId: uuid("user_id"),
     displayName: text("display_name").notNull(),
     ...timestamps,
   },
@@ -190,6 +190,11 @@ export const persons = pgTable(
       name: "persons_object_workspace_fk",
       columns: [table.workspaceId, table.objectId],
       foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "persons_workspace_user_fk",
+      columns: [table.workspaceId, table.userId],
+      foreignColumns: [workspaceUsers.workspaceId, workspaceUsers.userId],
     }).onDelete("restrict"),
   ],
 );
