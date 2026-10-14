@@ -1,11 +1,15 @@
 import {
+  accessRolePermissions,
+  accessRoles,
   contexts,
   createDatabase,
   objects,
+  permissions,
   persons,
   workspaceUsers,
   workspaces,
 } from "@utilitaire/database";
+import { eq } from "drizzle-orm";
 
 export interface CreateWorkspaceInput {
   userId: string;
@@ -22,6 +26,20 @@ export interface CreatedWorkspace {
 }
 
 type Database = ReturnType<typeof createDatabase>["db"];
+
+const systemRoles = [
+  { name: "Administrator", systemKey: "administrator" as const },
+  { name: "Manager", systemKey: "manager" as const },
+  { name: "Member", systemKey: "member" as const },
+  { name: "Guest", systemKey: "guest" as const },
+];
+
+const coreWorkspaceReadPermission = {
+  key: "core.workspace.read",
+  moduleKey: "core",
+  objectType: "workspace",
+  action: "read",
+};
 
 export async function createWorkspaceForUser(
   db: Database,
@@ -62,6 +80,44 @@ export async function createWorkspaceForUser(
     if (!membership) {
       throw new Error("Workspace membership creation failed");
     }
+
+    await tx
+      .insert(permissions)
+      .values(coreWorkspaceReadPermission)
+      .onConflictDoNothing({ target: permissions.key });
+
+    const [workspaceReadPermission] = await tx
+      .select({ id: permissions.id })
+      .from(permissions)
+      .where(eq(permissions.key, coreWorkspaceReadPermission.key))
+      .limit(1);
+
+    if (!workspaceReadPermission) {
+      throw new Error("Core workspace read permission bootstrap failed");
+    }
+
+    const createdRoles = await tx
+      .insert(accessRoles)
+      .values(
+        systemRoles.map((role) => ({
+          workspaceId: workspace.id,
+          name: role.name,
+          systemKey: role.systemKey,
+        })),
+      )
+      .returning({ id: accessRoles.id, systemKey: accessRoles.systemKey });
+
+    const administratorRole = createdRoles.find((role) => role.systemKey === "administrator");
+
+    if (!administratorRole || createdRoles.length !== systemRoles.length) {
+      throw new Error("Workspace system roles bootstrap failed");
+    }
+
+    await tx.insert(accessRolePermissions).values({
+      workspaceId: workspace.id,
+      accessRoleId: administratorRole.id,
+      permissionId: workspaceReadPermission.id,
+    });
 
     const [personObject] = await tx
       .insert(objects)
