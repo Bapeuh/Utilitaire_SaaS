@@ -25,6 +25,8 @@ export async function enableWorkspaceModule(
       })
       .where(eq(workspaceModules.id, existing.id))
       .returning();
+
+    if (!updated) throw new Error("Workspace module re-enable failed");
     return updated;
   }
 
