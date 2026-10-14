@@ -1,0 +1,140 @@
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.panel-heading.stacked {
+  display: grid;
+  gap: 18px;
+}
+
+.entity-heading {
+  gap: 20px;
+}
+
+.entity-create-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.entity-create-form.compact {
+  width: 100%;
+}
+
+.entity-create-form input,
+.entity-create-form select {
+  min-width: 180px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  padding: 9px 11px;
+  background: white;
+  color: #18202a;
+}
+
+.entity-create-form.compact input {
+  flex: 1;
+}
+
+.small-primary.dark {
+  background: #111827;
+  color: white;
+}
+
+.module-list {
+  display: grid;
+}
+
+.module-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  padding: 18px 0;
+  border-top: 1px solid #eef1f4;
+}
+
+.module-row:first-child {
+  border-top: 0;
+}
+
+.module-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.module-row strong {
+  font-size: 15px;
+}
+
+.module-row span,
+.module-row small {
+  color: #667085;
+}
+
+.module-row small {
+  font-size: 11px;
+}
+
+.module-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #f2f4f7;
+  color: #667085 !important;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-badge.enabled {
+  background: #ecfdf3;
+  color: #027a48 !important;
+}
+
+.small-ghost.danger {
+  color: #b42318;
+  text-align: center;
+  padding: 7px 9px;
+}
+
+@media (max-width: 1050px) {
+  .people-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .entity-heading {
+    display: grid;
+  }
+
+  .entity-create-form {
+    display: grid;
+    width: 100%;
+  }
+
+  .entity-create-form input,
+  .entity-create-form select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .module-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .module-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
