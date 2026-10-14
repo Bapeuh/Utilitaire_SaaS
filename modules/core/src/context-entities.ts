@@ -1,15 +1,14 @@
 import {
-  and,
   contexts,
   createDatabase,
-  eq,
-  isNull,
   objects,
   projects,
   scopes,
 } from "@utilitaire/database";
+import { and, eq, isNull } from "drizzle-orm";
 
 type Database = ReturnType<typeof createDatabase>["db"];
+type QueryExecutor = Pick<Database, "select">;
 
 type ParentContextType = "workspace" | "scope";
 
@@ -39,7 +38,7 @@ export interface CreatedProject {
 }
 
 async function requireParentContext(
-  db: Database,
+  db: QueryExecutor,
   workspaceId: string,
   parentContextId: string,
 ): Promise<{ id: string; type: ParentContextType }> {
@@ -67,7 +66,7 @@ export async function createScope(
   input: CreateContextEntityInput,
 ): Promise<CreatedScope> {
   return db.transaction(async (tx) => {
-    await requireParentContext(tx as Database, input.workspaceId, input.parentContextId);
+    await requireParentContext(tx, input.workspaceId, input.parentContextId);
 
     const [context] = await tx
       .insert(contexts)
@@ -119,7 +118,7 @@ export async function createProject(
   input: CreateContextEntityInput,
 ): Promise<CreatedProject> {
   return db.transaction(async (tx) => {
-    await requireParentContext(tx as Database, input.workspaceId, input.parentContextId);
+    await requireParentContext(tx, input.workspaceId, input.parentContextId);
 
     const [context] = await tx
       .insert(contexts)
