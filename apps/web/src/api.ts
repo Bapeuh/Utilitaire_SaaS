@@ -41,6 +41,18 @@ interface ProjectApiSummary {
   createdAt: string;
 }
 
+interface CreatedScopeApiSummary {
+  scopeId: string;
+  contextId: string;
+  objectId: string;
+}
+
+interface CreatedProjectApiSummary {
+  projectId: string;
+  contextId: string;
+  objectId: string;
+}
+
 export interface NamedWorkspaceEntity {
   id: string;
   workspaceId: string;
@@ -142,11 +154,19 @@ export async function listScopes(workspaceId: string): Promise<ContextEntitySumm
   }));
 }
 
-export async function createScope(workspaceId: string, name: string, parentContextId: string) {
-  return request<{ scopeId: string; contextId: string; objectId: string }>(`/api/workspaces/${workspaceId}/scopes`, {
+export async function createScope(workspaceId: string, name: string, parentContextId: string): Promise<ContextEntitySummary> {
+  const row = await request<CreatedScopeApiSummary>(`/api/workspaces/${workspaceId}/scopes`, {
     method: "POST",
     body: JSON.stringify({ name, parentContextId }),
   });
+  return {
+    id: row.scopeId,
+    contextId: row.contextId,
+    objectId: row.objectId,
+    parentContextId,
+    name,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export async function listProjects(workspaceId: string): Promise<ContextEntitySummary[]> {
@@ -161,11 +181,19 @@ export async function listProjects(workspaceId: string): Promise<ContextEntitySu
   }));
 }
 
-export async function createProject(workspaceId: string, name: string, parentContextId: string) {
-  return request<{ projectId: string; contextId: string; objectId: string }>(`/api/workspaces/${workspaceId}/projects`, {
+export async function createProject(workspaceId: string, name: string, parentContextId: string): Promise<ContextEntitySummary> {
+  const row = await request<CreatedProjectApiSummary>(`/api/workspaces/${workspaceId}/projects`, {
     method: "POST",
     body: JSON.stringify({ name, parentContextId }),
   });
+  return {
+    id: row.projectId,
+    contextId: row.contextId,
+    objectId: row.objectId,
+    parentContextId,
+    name,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export async function listOrganizations(workspaceId: string) {
