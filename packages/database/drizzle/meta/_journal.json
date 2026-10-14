@@ -15,6 +15,13 @@
       "when": 1791972570833,
       "tag": "0001_premium_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791973404501,
+      "tag": "0002_wild_madrox",
+      "breakpoints": true
     }
   ]
 }
