@@ -57,10 +57,19 @@ export async function listWorkspacesForUser(db: Database, userId: string) {
       id: workspaces.id,
       name: workspaces.name,
       role: workspaceUsers.role,
+      rootContextId: contexts.id,
       createdAt: workspaces.createdAt,
     })
     .from(workspaceUsers)
     .innerJoin(workspaces, eq(workspaces.id, workspaceUsers.workspaceId))
+    .innerJoin(
+      contexts,
+      and(
+        eq(contexts.workspaceId, workspaces.id),
+        eq(contexts.type, "workspace"),
+        isNull(contexts.archivedAt),
+      ),
+    )
     .where(and(eq(workspaceUsers.userId, userId), isNull(workspaceUsers.archivedAt), isNull(workspaces.archivedAt)))
     .orderBy(asc(workspaces.name));
 }
