@@ -1,5 +1,6 @@
 export {
   createWorkspaceForUser,
+  listWorkspacesForUser,
   type CreateWorkspaceInput,
   type CreatedWorkspace,
 } from "./workspace.js";
