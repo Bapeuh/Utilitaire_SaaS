@@ -8,6 +8,13 @@
       "when": 1791965549669,
       "tag": "0000_same_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791972570833,
+      "tag": "0001_premium_zaran",
+      "breakpoints": true
     }
   ]
 }
