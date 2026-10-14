@@ -1,6 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { createDatabase } from "@utilitaire/database";
-import * as databaseSchema from "@utilitaire/database";
+import { createDatabase, databaseSchema } from "@utilitaire/database";
 import { betterAuth } from "better-auth";
 
 const databaseUrl =
