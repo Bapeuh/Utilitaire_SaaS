@@ -11,8 +11,9 @@ import {
 import { and, asc, eq, isNull } from "drizzle-orm";
 
 type Database = ReturnType<typeof createDatabase>["db"];
+type QueryExecutor = Pick<Database, "select">;
 
-async function requireWorkspaceRootContextId(db: Database, workspaceId: string) {
+async function requireWorkspaceRootContextId(db: QueryExecutor, workspaceId: string) {
   const [root] = await db
     .select({ id: contexts.id })
     .from(contexts)
@@ -35,7 +36,7 @@ export async function getWorkspaceRootContextId(db: Database, workspaceId: strin
 
 export async function createOrganization(db: Database, workspaceId: string, name: string) {
   return db.transaction(async (tx) => {
-    const rootContextId = await requireWorkspaceRootContextId(tx as Database, workspaceId);
+    const rootContextId = await requireWorkspaceRootContextId(tx, workspaceId);
     const [object] = await tx
       .insert(objects)
       .values({ workspaceId, contextId: rootContextId, moduleKey: "core", objectType: "organization" })
@@ -61,7 +62,7 @@ export async function listOrganizations(db: Database, workspaceId: string) {
 
 export async function createTeam(db: Database, workspaceId: string, name: string) {
   return db.transaction(async (tx) => {
-    const rootContextId = await requireWorkspaceRootContextId(tx as Database, workspaceId);
+    const rootContextId = await requireWorkspaceRootContextId(tx, workspaceId);
     const [object] = await tx
       .insert(objects)
       .values({ workspaceId, contextId: rootContextId, moduleKey: "core", objectType: "team" })
@@ -86,9 +87,7 @@ export async function addTeamMember(db: Database, workspaceId: string, teamId: s
   const [membership] = await db
     .insert(teamMembers)
     .values({ workspaceId, teamId, personId })
-    .onConflictDoNothing({
-      target: [teamMembers.workspaceId, teamMembers.teamId, teamMembers.personId],
-    })
+    .onConflictDoNothing({ target: [teamMembers.workspaceId, teamMembers.teamId, teamMembers.personId] })
     .returning();
 
   if (membership) return membership;
@@ -118,10 +117,7 @@ export async function listTeamMembers(db: Database, workspaceId: string, teamId:
       userId: persons.userId,
     })
     .from(teamMembers)
-    .innerJoin(
-      persons,
-      and(eq(persons.workspaceId, teamMembers.workspaceId), eq(persons.id, teamMembers.personId)),
-    )
+    .innerJoin(persons, and(eq(persons.workspaceId, teamMembers.workspaceId), eq(persons.id, teamMembers.personId)))
     .where(
       and(
         eq(teamMembers.workspaceId, workspaceId),
