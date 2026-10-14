@@ -1,11 +1,12 @@
 import {
   activities,
   createDatabase,
+  outboxDeliveries,
   outboxEvents,
   processedEvents,
   workspaces,
 } from "@utilitaire/database";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
@@ -28,7 +29,8 @@ async function createWorkspace(name: string) {
 }
 
 async function cleanupWorkspace(workspaceId: string) {
-  await client`delete from processed_events where event_id in (select id from outbox_events where workspace_id = ${workspaceId})`;
+  await client`delete from processed_events where workspace_id = ${workspaceId}`;
+  await client`delete from outbox_deliveries where workspace_id = ${workspaceId}`;
   await client`delete from outbox_events where workspace_id = ${workspaceId}`;
   await client`delete from activities where workspace_id = ${workspaceId}`;
   await client`delete from workspace_modules where workspace_id = ${workspaceId}`;
@@ -40,7 +42,7 @@ afterAll(async () => {
 });
 
 describe("transactional activity and outbox", () => {
-  it("writes Activity and Outbox atomically and processes exactly once per consumer", async () => {
+  it("writes Activity and Outbox atomically and processes once for each consumer", async () => {
     const workspaceId = await createWorkspace("Outbox integration");
     try {
       const created = await recordActivityAndEvent(db, {
@@ -60,31 +62,49 @@ describe("transactional activity and outbox", () => {
       expect(created.activityId).toBeTruthy();
       expect(created.eventId).toBeTruthy();
 
-      let calls = 0;
-      const first = await processOutboxBatch(
+      let consumerACalls = 0;
+      let consumerBCalls = 0;
+
+      const firstA = await processOutboxBatch(
         db,
         async () => {
-          calls += 1;
+          consumerACalls += 1;
         },
-        { consumerKey: "test.consumer", maxAttempts: 3, retryDelayMs: 0 },
+        { consumerKey: "test.consumer.a", maxAttempts: 3, retryDelayMs: 0 },
       );
-      const second = await processOutboxBatch(
+      const secondA = await processOutboxBatch(
         db,
         async () => {
-          calls += 1;
+          consumerACalls += 1;
         },
-        { consumerKey: "test.consumer", maxAttempts: 3, retryDelayMs: 0 },
+        { consumerKey: "test.consumer.a", maxAttempts: 3, retryDelayMs: 0 },
+      );
+      const firstB = await processOutboxBatch(
+        db,
+        async () => {
+          consumerBCalls += 1;
+        },
+        { consumerKey: "test.consumer.b", maxAttempts: 3, retryDelayMs: 0 },
       );
 
-      expect(first).toEqual([{ eventId: created.eventId, status: "processed" }]);
-      expect(second).toEqual([]);
-      expect(calls).toBe(1);
+      expect(firstA).toEqual([{ eventId: created.eventId, status: "processed" }]);
+      expect(secondA).toEqual([]);
+      expect(firstB).toEqual([{ eventId: created.eventId, status: "processed" }]);
+      expect(consumerACalls).toBe(1);
+      expect(consumerBCalls).toBe(1);
 
       const processed = await db
         .select()
         .from(processedEvents)
         .where(eq(processedEvents.eventId, created.eventId));
-      expect(processed).toHaveLength(1);
+      expect(processed).toHaveLength(2);
+
+      const deliveries = await db
+        .select({ consumerKey: outboxDeliveries.consumerKey, status: outboxDeliveries.status })
+        .from(outboxDeliveries)
+        .where(eq(outboxDeliveries.eventId, created.eventId));
+      expect(deliveries).toHaveLength(2);
+      expect(deliveries.every((delivery) => delivery.status === "processed")).toBe(true);
     } finally {
       await cleanupWorkspace(workspaceId);
     }
@@ -116,7 +136,7 @@ describe("transactional activity and outbox", () => {
     }
   });
 
-  it("retries failures and dead-letters after the configured maximum", async () => {
+  it("retries and dead-letters independently for one consumer", async () => {
     const workspaceId = await createWorkspace("Outbox dead letter");
     try {
       const [event] = await db
@@ -144,10 +164,26 @@ describe("transactional activity and outbox", () => {
       expect(second).toEqual([{ eventId: event.id, status: "dead_letter" }]);
 
       const [stored] = await db
-        .select({ status: outboxEvents.status, attempts: outboxEvents.attempts })
-        .from(outboxEvents)
-        .where(eq(outboxEvents.id, event.id));
+        .select({ status: outboxDeliveries.status, attempts: outboxDeliveries.attempts })
+        .from(outboxDeliveries)
+        .where(
+          and(
+            eq(outboxDeliveries.eventId, event.id),
+            eq(outboxDeliveries.consumerKey, "test.failure.consumer"),
+          ),
+        );
       expect(stored).toMatchObject({ status: "dead_letter", attempts: 2 });
+
+      let healthyCalls = 0;
+      const healthy = await processOutboxBatch(
+        db,
+        async () => {
+          healthyCalls += 1;
+        },
+        { consumerKey: "test.healthy.consumer", maxAttempts: 2, retryDelayMs: 0 },
+      );
+      expect(healthy).toEqual([{ eventId: event.id, status: "processed" }]);
+      expect(healthyCalls).toBe(1);
     } finally {
       await cleanupWorkspace(workspaceId);
     }
