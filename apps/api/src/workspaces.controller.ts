@@ -32,6 +32,7 @@ import {
   listTeamMembers,
   listTeams,
   listWorkspaceModules,
+  listWorkspacesForUser,
 } from "@utilitaire/core";
 import { hasPermission } from "@utilitaire/permissions";
 import type { Request } from "express";
@@ -102,6 +103,12 @@ export class WorkspacesController {
     });
     if (!allowed) throw new ForbiddenException();
     return rootContextId;
+  }
+
+  @Get()
+  async listWorkspaces(@Req() request: Request) {
+    const user = await this.requireUser(request);
+    return listWorkspacesForUser(apiDatabase, user.id);
   }
 
   @Post()
