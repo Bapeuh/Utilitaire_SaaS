@@ -38,6 +38,9 @@ button { cursor: pointer; }
 .primary-button { border: 0; border-radius: 10px; padding: 13px 16px; background: #111827; color: white; font-weight: 700; }
 .primary-button:disabled { opacity: .55; }
 .error-box { padding: 12px 14px; border-radius: 10px; background: #fef3f2; color: #b42318; font-size: 14px; }
+.auth-switch { display: flex; justify-content: center; align-items: center; gap: 8px; color: #667085; font-size: 14px; }
+.auth-switch button { border: 0; padding: 0; background: transparent; color: #111827; font-weight: 700; }
+.auth-switch button:hover { text-decoration: underline; }
 
 .brand-block { display: flex; gap: 12px; align-items: center; }
 .brand-block strong { display: block; font-size: 16px; }
