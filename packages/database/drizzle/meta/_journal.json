@@ -22,6 +22,13 @@
       "when": 1791973404501,
       "tag": "0002_wild_madrox",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791974237158,
+      "tag": "0003_daily_stature",
+      "breakpoints": true
     }
   ]
 }
