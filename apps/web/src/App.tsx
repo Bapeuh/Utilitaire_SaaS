@@ -9,6 +9,7 @@ import {
   listWorkspaces,
   signIn,
   signOut,
+  signUp,
   type WorkspaceSummary,
 } from "./api";
 
@@ -62,7 +63,7 @@ export function App() {
   }
 
   if (!user) {
-    return <LoginScreen onSuccess={() => queryClient.invalidateQueries({ queryKey: ["session"] })} />;
+    return <AuthScreen onSuccess={() => queryClient.invalidateQueries({ queryKey: ["session"] })} />;
   }
 
   return (
@@ -127,13 +128,23 @@ export function App() {
   );
 }
 
-function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
+function AuthScreen({ onSuccess }: { onSuccess: () => void }) {
+  const [mode, setMode] = React.useState<"signin" | "signup">("signin");
+  const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const mutation = useMutation({
+
+  const signInMutation = useMutation({
     mutationFn: () => signIn(email, password),
     onSuccess,
   });
+
+  const signUpMutation = useMutation({
+    mutationFn: () => signUp(name, email, password),
+    onSuccess,
+  });
+
+  const mutation = mode === "signin" ? signInMutation : signUpMutation;
 
   return (
     <div className="auth-layout">
@@ -146,12 +157,86 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </section>
       <section className="auth-panel auth-form-panel">
-        <form className="auth-card" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
-          <div><span className="eyebrow">Connexion</span><h2>Bienvenue</h2><p>Connectez-vous à votre espace Utilitaire.</p></div>
-          <label>Email<input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-          <label>Mot de passe<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
-          {mutation.isError && <div className="error-box">Connexion impossible. Vérifiez vos identifiants.</div>}
-          <button className="primary-button" disabled={mutation.isPending}>{mutation.isPending ? "Connexion…" : "Se connecter"}</button>
+        <form
+          className="auth-card"
+          onSubmit={(event) => {
+            event.preventDefault();
+            mutation.mutate();
+          }}
+        >
+          <div>
+            <span className="eyebrow">{mode === "signin" ? "Connexion" : "Inscription"}</span>
+            <h2>{mode === "signin" ? "Bienvenue" : "Créer un compte"}</h2>
+            <p>
+              {mode === "signin"
+                ? "Connectez-vous à votre espace Utilitaire."
+                : "Créez votre compte pour démarrer votre premier workspace."}
+            </p>
+          </div>
+
+          {mode === "signup" && (
+            <label>
+              Nom
+              <input
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </label>
+          )}
+
+          <label>
+            Email
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Mot de passe
+            <input
+              type="password"
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={8}
+              required
+            />
+          </label>
+
+          {mutation.isError && (
+            <div className="error-box">
+              {mode === "signin"
+                ? "Connexion impossible. Vérifiez vos identifiants."
+                : "Création du compte impossible. Vérifiez l’email et le mot de passe."}
+            </div>
+          )}
+
+          <button className="primary-button" disabled={mutation.isPending}>
+            {mutation.isPending
+              ? mode === "signin" ? "Connexion…" : "Création…"
+              : mode === "signin" ? "Se connecter" : "Créer mon compte"}
+          </button>
+
+          <div className="auth-switch">
+            <span>{mode === "signin" ? "Pas encore de compte ?" : "Déjà un compte ?"}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                signInMutation.reset();
+                signUpMutation.reset();
+              }}
+            >
+              {mode === "signin" ? "Créer un compte" : "Se connecter"}
+            </button>
+          </div>
         </form>
       </section>
     </div>
