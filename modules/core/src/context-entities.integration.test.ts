@@ -3,7 +3,15 @@ import { randomUUID } from "node:crypto";
 import { createDatabase } from "@utilitaire/database";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { createProject, createScope, InvalidParentContextError } from "./context-entities.js";
+import {
+  createProject,
+  createScope,
+  getProject,
+  getScope,
+  InvalidParentContextError,
+  listProjects,
+  listScopes,
+} from "./context-entities.js";
 import { createWorkspaceForUser } from "./workspace.js";
 
 const databaseUrl =
@@ -95,6 +103,113 @@ describe("Core Scope and Project creation", () => {
       if (workspaceId) {
         await deleteWorkspace(workspaceId);
       }
+      await client`delete from users where id = ${userId}`;
+    }
+  });
+
+  it("lists and reads active Scopes and Projects inside one Workspace", async () => {
+    const userId = randomUUID();
+    const email = `context-read-${randomUUID()}@example.test`;
+
+    await client`
+      insert into users (id, name, email, email_verified)
+      values (${userId}, 'Context Read User', ${email}, false)
+    `;
+
+    let workspaceId: string | undefined;
+
+    try {
+      const workspace = await createWorkspaceForUser(db, {
+        userId,
+        workspaceName: "Read integration workspace",
+        personDisplayName: "Context Read User",
+      });
+      workspaceId = workspace.workspaceId;
+
+      const scope = await createScope(db, {
+        workspaceId: workspace.workspaceId,
+        parentContextId: workspace.rootContextId,
+        name: "Operations",
+      });
+      const project = await createProject(db, {
+        workspaceId: workspace.workspaceId,
+        parentContextId: scope.contextId,
+        name: "Launch",
+      });
+
+      const scopeList = await listScopes(db, workspace.workspaceId);
+      const projectList = await listProjects(db, workspace.workspaceId);
+      const scopeDetail = await getScope(db, workspace.workspaceId, scope.scopeId);
+      const projectDetail = await getProject(db, workspace.workspaceId, project.projectId);
+
+      expect(scopeList).toHaveLength(1);
+      expect(scopeList[0]).toMatchObject({
+        scopeId: scope.scopeId,
+        contextId: scope.contextId,
+        objectId: scope.objectId,
+        parentContextId: workspace.rootContextId,
+        name: "Operations",
+      });
+      expect(projectList).toHaveLength(1);
+      expect(projectList[0]).toMatchObject({
+        projectId: project.projectId,
+        contextId: project.contextId,
+        objectId: project.objectId,
+        parentContextId: scope.contextId,
+        name: "Launch",
+      });
+      expect(scopeDetail).toMatchObject({ scopeId: scope.scopeId, name: "Operations" });
+      expect(projectDetail).toMatchObject({ projectId: project.projectId, name: "Launch" });
+    } finally {
+      if (workspaceId) await deleteWorkspace(workspaceId);
+      await client`delete from users where id = ${userId}`;
+    }
+  });
+
+  it("does not read Scope or Project through another Workspace id", async () => {
+    const userId = randomUUID();
+    const email = `context-isolation-${randomUUID()}@example.test`;
+
+    await client`
+      insert into users (id, name, email, email_verified)
+      values (${userId}, 'Isolation User', ${email}, false)
+    `;
+
+    let firstWorkspaceId: string | undefined;
+    let secondWorkspaceId: string | undefined;
+
+    try {
+      const first = await createWorkspaceForUser(db, {
+        userId,
+        workspaceName: "Isolation first",
+        personDisplayName: "Isolation User",
+      });
+      firstWorkspaceId = first.workspaceId;
+      const second = await createWorkspaceForUser(db, {
+        userId,
+        workspaceName: "Isolation second",
+        personDisplayName: "Isolation User",
+      });
+      secondWorkspaceId = second.workspaceId;
+
+      const scope = await createScope(db, {
+        workspaceId: first.workspaceId,
+        parentContextId: first.rootContextId,
+        name: "Private scope",
+      });
+      const project = await createProject(db, {
+        workspaceId: first.workspaceId,
+        parentContextId: scope.contextId,
+        name: "Private project",
+      });
+
+      expect(await getScope(db, second.workspaceId, scope.scopeId)).toBeNull();
+      expect(await getProject(db, second.workspaceId, project.projectId)).toBeNull();
+      expect(await listScopes(db, second.workspaceId)).toHaveLength(0);
+      expect(await listProjects(db, second.workspaceId)).toHaveLength(0);
+    } finally {
+      if (firstWorkspaceId) await deleteWorkspace(firstWorkspaceId);
+      if (secondWorkspaceId) await deleteWorkspace(secondWorkspaceId);
       await client`delete from users where id = ${userId}`;
     }
   });
