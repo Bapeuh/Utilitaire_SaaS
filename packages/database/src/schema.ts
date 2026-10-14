@@ -85,12 +85,37 @@ export const verifications = pgTable(
 );
 
 export const contextType = pgEnum("context_type", ["workspace", "scope", "project"]);
+export const workspaceUserRole = pgEnum("workspace_user_role", [
+  "administrator",
+  "manager",
+  "member",
+  "guest",
+]);
 
 export const workspaces = pgTable("workspaces", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   ...timestamps,
 });
+
+export const workspaceUsers = pgTable(
+  "workspace_users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    role: workspaceUserRole("role").default("member").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("workspace_users_workspace_user_unique").on(table.workspaceId, table.userId),
+    index("workspace_users_user_id_idx").on(table.userId),
+  ],
+);
 
 export const contexts = pgTable(
   "contexts",
@@ -142,6 +167,29 @@ export const objects = pgTable(
       name: "objects_context_workspace_fk",
       columns: [table.workspaceId, table.contextId],
       foreignColumns: [contexts.workspaceId, contexts.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const persons = pgTable(
+  "persons",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    objectId: uuid("object_id").notNull().unique(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "restrict" }),
+    displayName: text("display_name").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("persons_workspace_id_id_unique").on(table.workspaceId, table.id),
+    unique("persons_workspace_user_unique").on(table.workspaceId, table.userId),
+    foreignKey({
+      name: "persons_object_workspace_fk",
+      columns: [table.workspaceId, table.objectId],
+      foreignColumns: [objects.workspaceId, objects.id],
     }).onDelete("restrict"),
   ],
 );
@@ -210,10 +258,14 @@ export type Verification = typeof verifications.$inferSelect;
 export type NewVerification = typeof verifications.$inferInsert;
 export type Workspace = typeof workspaces.$inferSelect;
 export type NewWorkspace = typeof workspaces.$inferInsert;
+export type WorkspaceUser = typeof workspaceUsers.$inferSelect;
+export type NewWorkspaceUser = typeof workspaceUsers.$inferInsert;
 export type Context = typeof contexts.$inferSelect;
 export type NewContext = typeof contexts.$inferInsert;
 export type RegistryObject = typeof objects.$inferSelect;
 export type NewRegistryObject = typeof objects.$inferInsert;
+export type Person = typeof persons.$inferSelect;
+export type NewPerson = typeof persons.$inferInsert;
 export type Scope = typeof scopes.$inferSelect;
 export type NewScope = typeof scopes.$inferInsert;
 export type Project = typeof projects.$inferSelect;
