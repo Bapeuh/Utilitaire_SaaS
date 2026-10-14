@@ -17,3 +17,10 @@ export {
   type ProjectSummary,
   type ScopeSummary,
 } from "./context-entities.js";
+
+export {
+  disableWorkspaceModule,
+  enableWorkspaceModule,
+  isWorkspaceModuleEnabled,
+  listWorkspaceModules,
+} from "./module-registry.js";
