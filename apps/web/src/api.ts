@@ -16,10 +16,29 @@ export interface WorkspaceSummary {
 
 export interface ContextEntitySummary {
   id: string;
-  workspaceId: string;
   contextId: string;
   objectId: string;
+  parentContextId: string | null;
   name: string;
+  createdAt: string;
+}
+
+interface ScopeApiSummary {
+  scopeId: string;
+  contextId: string;
+  objectId: string;
+  parentContextId: string | null;
+  name: string;
+  createdAt: string;
+}
+
+interface ProjectApiSummary {
+  projectId: string;
+  contextId: string;
+  objectId: string;
+  parentContextId: string | null;
+  name: string;
+  createdAt: string;
 }
 
 export interface NamedWorkspaceEntity {
@@ -111,23 +130,39 @@ export async function createWorkspace(name: string, personDisplayName?: string) 
   });
 }
 
-export async function listScopes(workspaceId: string) {
-  return request<ContextEntitySummary[]>(`/api/workspaces/${workspaceId}/scopes`);
+export async function listScopes(workspaceId: string): Promise<ContextEntitySummary[]> {
+  const rows = await request<ScopeApiSummary[]>(`/api/workspaces/${workspaceId}/scopes`);
+  return rows.map((row) => ({
+    id: row.scopeId,
+    contextId: row.contextId,
+    objectId: row.objectId,
+    parentContextId: row.parentContextId,
+    name: row.name,
+    createdAt: row.createdAt,
+  }));
 }
 
 export async function createScope(workspaceId: string, name: string, parentContextId: string) {
-  return request<ContextEntitySummary>(`/api/workspaces/${workspaceId}/scopes`, {
+  return request<{ scopeId: string; contextId: string; objectId: string }>(`/api/workspaces/${workspaceId}/scopes`, {
     method: "POST",
     body: JSON.stringify({ name, parentContextId }),
   });
 }
 
-export async function listProjects(workspaceId: string) {
-  return request<ContextEntitySummary[]>(`/api/workspaces/${workspaceId}/projects`);
+export async function listProjects(workspaceId: string): Promise<ContextEntitySummary[]> {
+  const rows = await request<ProjectApiSummary[]>(`/api/workspaces/${workspaceId}/projects`);
+  return rows.map((row) => ({
+    id: row.projectId,
+    contextId: row.contextId,
+    objectId: row.objectId,
+    parentContextId: row.parentContextId,
+    name: row.name,
+    createdAt: row.createdAt,
+  }));
 }
 
 export async function createProject(workspaceId: string, name: string, parentContextId: string) {
-  return request<ContextEntitySummary>(`/api/workspaces/${workspaceId}/projects`, {
+  return request<{ projectId: string; contextId: string; objectId: string }>(`/api/workspaces/${workspaceId}/projects`, {
     method: "POST",
     body: JSON.stringify({ name, parentContextId }),
   });
