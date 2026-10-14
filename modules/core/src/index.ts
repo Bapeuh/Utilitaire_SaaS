@@ -7,7 +7,13 @@ export {
 export {
   createProject,
   createScope,
+  getProject,
+  getScope,
   InvalidParentContextError,
+  listProjects,
+  listScopes,
   type CreatedProject,
   type CreatedScope,
+  type ProjectSummary,
+  type ScopeSummary,
 } from "./context-entities.js";
