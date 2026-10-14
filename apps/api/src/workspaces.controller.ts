@@ -3,6 +3,8 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
+  NotFoundException,
   Param,
   Post,
   Req,
@@ -13,7 +15,11 @@ import {
   createProject,
   createScope,
   createWorkspaceForUser,
+  getProject,
+  getScope,
   InvalidParentContextError,
+  listProjects,
+  listScopes,
 } from "@utilitaire/core";
 import { hasPermission } from "@utilitaire/permissions";
 import type { Request } from "express";
@@ -105,6 +111,62 @@ export class WorkspacesController {
     }
   }
 
+  @Get(":workspaceId/scopes")
+  async listScopes(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
+    const session = await getAuthSession(request.headers);
+
+    if (!session) {
+      throw new UnauthorizedException();
+    }
+
+    const scopeRows = await listScopes(apiDatabase, workspaceId);
+    const readable = await Promise.all(
+      scopeRows.map(async (scope) => ({
+        scope,
+        allowed: await hasPermission(apiDatabase, {
+          workspaceId,
+          userId: session.user.id,
+          contextId: scope.contextId,
+          permissionKey: "core.scope.read",
+        }),
+      })),
+    );
+
+    return readable.filter((entry) => entry.allowed).map((entry) => entry.scope);
+  }
+
+  @Get(":workspaceId/scopes/:scopeId")
+  async getScope(
+    @Req() request: Request,
+    @Param("workspaceId") workspaceId: string,
+    @Param("scopeId") scopeId: string,
+  ) {
+    const session = await getAuthSession(request.headers);
+
+    if (!session) {
+      throw new UnauthorizedException();
+    }
+
+    const scope = await getScope(apiDatabase, workspaceId, scopeId);
+
+    if (!scope) {
+      throw new NotFoundException();
+    }
+
+    const allowed = await hasPermission(apiDatabase, {
+      workspaceId,
+      userId: session.user.id,
+      contextId: scope.contextId,
+      permissionKey: "core.scope.read",
+    });
+
+    if (!allowed) {
+      throw new ForbiddenException();
+    }
+
+    return scope;
+  }
+
   @Post(":workspaceId/projects")
   async createProject(
     @Req() request: Request,
@@ -139,5 +201,61 @@ export class WorkspacesController {
       }
       throw error;
     }
+  }
+
+  @Get(":workspaceId/projects")
+  async listProjects(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
+    const session = await getAuthSession(request.headers);
+
+    if (!session) {
+      throw new UnauthorizedException();
+    }
+
+    const projectRows = await listProjects(apiDatabase, workspaceId);
+    const readable = await Promise.all(
+      projectRows.map(async (project) => ({
+        project,
+        allowed: await hasPermission(apiDatabase, {
+          workspaceId,
+          userId: session.user.id,
+          contextId: project.contextId,
+          permissionKey: "core.project.read",
+        }),
+      })),
+    );
+
+    return readable.filter((entry) => entry.allowed).map((entry) => entry.project);
+  }
+
+  @Get(":workspaceId/projects/:projectId")
+  async getProject(
+    @Req() request: Request,
+    @Param("workspaceId") workspaceId: string,
+    @Param("projectId") projectId: string,
+  ) {
+    const session = await getAuthSession(request.headers);
+
+    if (!session) {
+      throw new UnauthorizedException();
+    }
+
+    const project = await getProject(apiDatabase, workspaceId, projectId);
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const allowed = await hasPermission(apiDatabase, {
+      workspaceId,
+      userId: session.user.id,
+      contextId: project.contextId,
+      permissionKey: "core.project.read",
+    });
+
+    if (!allowed) {
+      throw new ForbiddenException();
+    }
+
+    return project;
   }
 }
