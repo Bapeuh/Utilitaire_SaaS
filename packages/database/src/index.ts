@@ -1,1 +1,2 @@
-export const DATABASE_PACKAGE_READY = true;
+export { createDatabase } from "./client.js";
+export * from "./schema.js";
