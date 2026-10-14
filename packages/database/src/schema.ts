@@ -199,6 +199,118 @@ export const persons = pgTable(
   ],
 );
 
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    objectId: uuid("object_id").notNull().unique(),
+    name: text("name").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("organizations_workspace_id_id_unique").on(table.workspaceId, table.id),
+    foreignKey({
+      name: "organizations_object_workspace_fk",
+      columns: [table.workspaceId, table.objectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const personOrganizationLinks = pgTable(
+  "person_organization_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    personId: uuid("person_id").notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("person_organization_links_unique").on(
+      table.workspaceId,
+      table.personId,
+      table.organizationId,
+    ),
+    foreignKey({
+      name: "person_organization_links_person_workspace_fk",
+      columns: [table.workspaceId, table.personId],
+      foreignColumns: [persons.workspaceId, persons.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "person_organization_links_organization_workspace_fk",
+      columns: [table.workspaceId, table.organizationId],
+      foreignColumns: [organizations.workspaceId, organizations.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const teams = pgTable(
+  "teams",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    objectId: uuid("object_id").notNull().unique(),
+    name: text("name").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("teams_workspace_id_id_unique").on(table.workspaceId, table.id),
+    foreignKey({
+      name: "teams_object_workspace_fk",
+      columns: [table.workspaceId, table.objectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const teamMembers = pgTable(
+  "team_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    teamId: uuid("team_id").notNull(),
+    personId: uuid("person_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("team_members_team_person_unique").on(table.workspaceId, table.teamId, table.personId),
+    index("team_members_person_idx").on(table.workspaceId, table.personId),
+    foreignKey({
+      name: "team_members_team_workspace_fk",
+      columns: [table.workspaceId, table.teamId],
+      foreignColumns: [teams.workspaceId, teams.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "team_members_person_workspace_fk",
+      columns: [table.workspaceId, table.personId],
+      foreignColumns: [persons.workspaceId, persons.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const jobRoles = pgTable(
+  "job_roles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    ...timestamps,
+  },
+  (table) => [unique("job_roles_workspace_id_id_unique").on(table.workspaceId, table.id)],
+);
+
 export const scopes = pgTable(
   "scopes",
   {
@@ -271,6 +383,16 @@ export type RegistryObject = typeof objects.$inferSelect;
 export type NewRegistryObject = typeof objects.$inferInsert;
 export type Person = typeof persons.$inferSelect;
 export type NewPerson = typeof persons.$inferInsert;
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
+export type PersonOrganizationLink = typeof personOrganizationLinks.$inferSelect;
+export type NewPersonOrganizationLink = typeof personOrganizationLinks.$inferInsert;
+export type Team = typeof teams.$inferSelect;
+export type NewTeam = typeof teams.$inferInsert;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type NewTeamMember = typeof teamMembers.$inferInsert;
+export type JobRole = typeof jobRoles.$inferSelect;
+export type NewJobRole = typeof jobRoles.$inferInsert;
 export type Scope = typeof scopes.$inferSelect;
 export type NewScope = typeof scopes.$inferInsert;
 export type Project = typeof projects.$inferSelect;
