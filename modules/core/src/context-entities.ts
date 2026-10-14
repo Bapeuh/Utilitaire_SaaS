@@ -5,7 +5,7 @@ import {
   projects,
   scopes,
 } from "@utilitaire/database";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 type Database = ReturnType<typeof createDatabase>["db"];
 type QueryExecutor = Pick<Database, "select">;
@@ -35,6 +35,24 @@ export interface CreatedProject {
   projectId: string;
   contextId: string;
   objectId: string;
+}
+
+export interface ScopeSummary {
+  scopeId: string;
+  contextId: string;
+  objectId: string;
+  parentContextId: string | null;
+  name: string;
+  createdAt: Date;
+}
+
+export interface ProjectSummary {
+  projectId: string;
+  contextId: string;
+  objectId: string;
+  parentContextId: string | null;
+  name: string;
+  createdAt: Date;
 }
 
 async function requireParentContext(
@@ -163,4 +181,118 @@ export async function createProject(
 
     return { projectId: project.id, contextId: context.id, objectId: object.id };
   });
+}
+
+export async function listScopes(db: Database, workspaceId: string): Promise<ScopeSummary[]> {
+  return db
+    .select({
+      scopeId: scopes.id,
+      contextId: scopes.contextId,
+      objectId: scopes.objectId,
+      parentContextId: contexts.parentContextId,
+      name: scopes.name,
+      createdAt: scopes.createdAt,
+    })
+    .from(scopes)
+    .innerJoin(
+      contexts,
+      and(eq(contexts.workspaceId, scopes.workspaceId), eq(contexts.id, scopes.contextId)),
+    )
+    .where(
+      and(
+        eq(scopes.workspaceId, workspaceId),
+        isNull(scopes.archivedAt),
+        isNull(contexts.archivedAt),
+      ),
+    )
+    .orderBy(asc(scopes.createdAt), asc(scopes.id));
+}
+
+export async function getScope(
+  db: Database,
+  workspaceId: string,
+  scopeId: string,
+): Promise<ScopeSummary | null> {
+  const [scope] = await db
+    .select({
+      scopeId: scopes.id,
+      contextId: scopes.contextId,
+      objectId: scopes.objectId,
+      parentContextId: contexts.parentContextId,
+      name: scopes.name,
+      createdAt: scopes.createdAt,
+    })
+    .from(scopes)
+    .innerJoin(
+      contexts,
+      and(eq(contexts.workspaceId, scopes.workspaceId), eq(contexts.id, scopes.contextId)),
+    )
+    .where(
+      and(
+        eq(scopes.workspaceId, workspaceId),
+        eq(scopes.id, scopeId),
+        isNull(scopes.archivedAt),
+        isNull(contexts.archivedAt),
+      ),
+    )
+    .limit(1);
+
+  return scope ?? null;
+}
+
+export async function listProjects(db: Database, workspaceId: string): Promise<ProjectSummary[]> {
+  return db
+    .select({
+      projectId: projects.id,
+      contextId: projects.contextId,
+      objectId: projects.objectId,
+      parentContextId: contexts.parentContextId,
+      name: projects.name,
+      createdAt: projects.createdAt,
+    })
+    .from(projects)
+    .innerJoin(
+      contexts,
+      and(eq(contexts.workspaceId, projects.workspaceId), eq(contexts.id, projects.contextId)),
+    )
+    .where(
+      and(
+        eq(projects.workspaceId, workspaceId),
+        isNull(projects.archivedAt),
+        isNull(contexts.archivedAt),
+      ),
+    )
+    .orderBy(asc(projects.createdAt), asc(projects.id));
+}
+
+export async function getProject(
+  db: Database,
+  workspaceId: string,
+  projectId: string,
+): Promise<ProjectSummary | null> {
+  const [project] = await db
+    .select({
+      projectId: projects.id,
+      contextId: projects.contextId,
+      objectId: projects.objectId,
+      parentContextId: contexts.parentContextId,
+      name: projects.name,
+      createdAt: projects.createdAt,
+    })
+    .from(projects)
+    .innerJoin(
+      contexts,
+      and(eq(contexts.workspaceId, projects.workspaceId), eq(contexts.id, projects.contextId)),
+    )
+    .where(
+      and(
+        eq(projects.workspaceId, workspaceId),
+        eq(projects.id, projectId),
+        isNull(projects.archivedAt),
+        isNull(contexts.archivedAt),
+      ),
+    )
+    .limit(1);
+
+  return project ?? null;
 }
