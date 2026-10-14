@@ -77,7 +77,7 @@ export async function createWorkspaceForUser(
 
     if (!membership) throw new Error("Workspace membership creation failed");
 
-    await tx.insert(permissions).values(corePermissions).onConflictDoNothing({ target: permissions.key });
+    await tx.insert(permissions).values(corePermissions).onConflictDoNothing();
 
     const permissionRows = await tx
       .select({ id: permissions.id, key: permissions.key })
