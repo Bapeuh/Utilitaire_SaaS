@@ -9,7 +9,7 @@ import {
   workspaceUsers,
   workspaces,
 } from "@utilitaire/database";
-import { inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 export interface CreateWorkspaceInput {
   userId: string;
@@ -50,6 +50,20 @@ const corePermissions = [
   { key: "core.module.read", moduleKey: "core", objectType: "module", action: "read" },
   { key: "core.module.manage", moduleKey: "core", objectType: "module", action: "manage" },
 ];
+
+export async function listWorkspacesForUser(db: Database, userId: string) {
+  return db
+    .select({
+      id: workspaces.id,
+      name: workspaces.name,
+      role: workspaceUsers.role,
+      createdAt: workspaces.createdAt,
+    })
+    .from(workspaceUsers)
+    .innerJoin(workspaces, eq(workspaces.id, workspaceUsers.workspaceId))
+    .where(and(eq(workspaceUsers.userId, userId), isNull(workspaceUsers.archivedAt), isNull(workspaces.archivedAt)))
+    .orderBy(asc(workspaces.name));
+}
 
 export async function createWorkspaceForUser(
   db: Database,
