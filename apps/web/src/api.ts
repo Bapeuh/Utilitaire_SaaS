@@ -82,6 +82,20 @@ export async function listScopes(workspaceId: string) {
   return request<ContextEntitySummary[]>(`/api/workspaces/${workspaceId}/scopes`);
 }
 
+export async function createScope(workspaceId: string, name: string, parentContextId: string) {
+  return request<ContextEntitySummary>(`/api/workspaces/${workspaceId}/scopes`, {
+    method: "POST",
+    body: JSON.stringify({ name, parentContextId }),
+  });
+}
+
 export async function listProjects(workspaceId: string) {
   return request<ContextEntitySummary[]>(`/api/workspaces/${workspaceId}/projects`);
+}
+
+export async function createProject(workspaceId: string, name: string, parentContextId: string) {
+  return request<ContextEntitySummary>(`/api/workspaces/${workspaceId}/projects`, {
+    method: "POST",
+    body: JSON.stringify({ name, parentContextId }),
+  });
 }
