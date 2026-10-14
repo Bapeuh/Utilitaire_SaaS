@@ -22,6 +22,39 @@ export interface ContextEntitySummary {
   name: string;
 }
 
+export interface NamedWorkspaceEntity {
+  id: string;
+  workspaceId: string;
+  name: string;
+  createdAt: string;
+  archivedAt: string | null;
+}
+
+export interface TeamSummary extends NamedWorkspaceEntity {
+  objectId: string;
+}
+
+export interface OrganizationSummary extends NamedWorkspaceEntity {
+  objectId: string;
+}
+
+export interface TeamMemberSummary {
+  membershipId: string;
+  personId: string;
+  displayName: string;
+  userId: string | null;
+}
+
+export interface WorkspaceModuleSummary {
+  id: string;
+  workspaceId: string;
+  moduleKey: string;
+  status: "enabled" | "disabled";
+  installedVersion: string | null;
+  createdAt: string;
+  archivedAt: string | null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     credentials: "include",
@@ -97,5 +130,59 @@ export async function createProject(workspaceId: string, name: string, parentCon
   return request<ContextEntitySummary>(`/api/workspaces/${workspaceId}/projects`, {
     method: "POST",
     body: JSON.stringify({ name, parentContextId }),
+  });
+}
+
+export async function listOrganizations(workspaceId: string) {
+  return request<OrganizationSummary[]>(`/api/workspaces/${workspaceId}/organizations`);
+}
+
+export async function createOrganization(workspaceId: string, name: string) {
+  return request<OrganizationSummary>(`/api/workspaces/${workspaceId}/organizations`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function listTeams(workspaceId: string) {
+  return request<TeamSummary[]>(`/api/workspaces/${workspaceId}/teams`);
+}
+
+export async function createTeam(workspaceId: string, name: string) {
+  return request<TeamSummary>(`/api/workspaces/${workspaceId}/teams`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function listTeamMembers(workspaceId: string, teamId: string) {
+  return request<TeamMemberSummary[]>(`/api/workspaces/${workspaceId}/teams/${teamId}/members`);
+}
+
+export async function listJobRoles(workspaceId: string) {
+  return request<NamedWorkspaceEntity[]>(`/api/workspaces/${workspaceId}/job-roles`);
+}
+
+export async function createJobRole(workspaceId: string, name: string) {
+  return request<NamedWorkspaceEntity>(`/api/workspaces/${workspaceId}/job-roles`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function listModules(workspaceId: string) {
+  return request<WorkspaceModuleSummary[]>(`/api/workspaces/${workspaceId}/modules`);
+}
+
+export async function enableModule(workspaceId: string, moduleKey: string, installedVersion?: string) {
+  return request<WorkspaceModuleSummary>(`/api/workspaces/${workspaceId}/modules/${moduleKey}/enable`, {
+    method: "POST",
+    body: JSON.stringify({ installedVersion }),
+  });
+}
+
+export async function disableModule(workspaceId: string, moduleKey: string) {
+  return request<WorkspaceModuleSummary>(`/api/workspaces/${workspaceId}/modules/${moduleKey}/disable`, {
+    method: "POST",
   });
 }
