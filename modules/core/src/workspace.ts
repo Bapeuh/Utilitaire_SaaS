@@ -9,7 +9,7 @@ import {
   workspaceUsers,
   workspaces,
 } from "@utilitaire/database";
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
 export interface CreateWorkspaceInput {
   userId: string;
@@ -34,12 +34,13 @@ const systemRoles = [
   { name: "Guest", systemKey: "guest" as const },
 ];
 
-const coreWorkspaceReadPermission = {
-  key: "core.workspace.read",
-  moduleKey: "core",
-  objectType: "workspace",
-  action: "read",
-};
+const corePermissions = [
+  { key: "core.workspace.read", moduleKey: "core", objectType: "workspace", action: "read" },
+  { key: "core.scope.create", moduleKey: "core", objectType: "scope", action: "create" },
+  { key: "core.scope.read", moduleKey: "core", objectType: "scope", action: "read" },
+  { key: "core.project.create", moduleKey: "core", objectType: "project", action: "create" },
+  { key: "core.project.read", moduleKey: "core", objectType: "project", action: "read" },
+] as const;
 
 export async function createWorkspaceForUser(
   db: Database,
@@ -81,19 +82,15 @@ export async function createWorkspaceForUser(
       throw new Error("Workspace membership creation failed");
     }
 
-    await tx
-      .insert(permissions)
-      .values(coreWorkspaceReadPermission)
-      .onConflictDoNothing({ target: permissions.key });
+    await tx.insert(permissions).values(corePermissions).onConflictDoNothing({ target: permissions.key });
 
-    const [workspaceReadPermission] = await tx
-      .select({ id: permissions.id })
+    const permissionRows = await tx
+      .select({ id: permissions.id, key: permissions.key })
       .from(permissions)
-      .where(eq(permissions.key, coreWorkspaceReadPermission.key))
-      .limit(1);
+      .where(inArray(permissions.key, corePermissions.map((permission) => permission.key)));
 
-    if (!workspaceReadPermission) {
-      throw new Error("Core workspace read permission bootstrap failed");
+    if (permissionRows.length !== corePermissions.length) {
+      throw new Error("Core permissions bootstrap failed");
     }
 
     const createdRoles = await tx
@@ -113,11 +110,13 @@ export async function createWorkspaceForUser(
       throw new Error("Workspace system roles bootstrap failed");
     }
 
-    await tx.insert(accessRolePermissions).values({
-      workspaceId: workspace.id,
-      accessRoleId: administratorRole.id,
-      permissionId: workspaceReadPermission.id,
-    });
+    await tx.insert(accessRolePermissions).values(
+      permissionRows.map((permission) => ({
+        workspaceId: workspace.id,
+        accessRoleId: administratorRole.id,
+        permissionId: permission.id,
+      })),
+    );
 
     const [personObject] = await tx
       .insert(objects)
