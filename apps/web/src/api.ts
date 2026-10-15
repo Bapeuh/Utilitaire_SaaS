@@ -61,6 +61,15 @@ export interface NamedWorkspaceEntity {
   archivedAt: string | null;
 }
 
+export interface PersonSummary {
+  id: string;
+  workspaceId: string;
+  objectId: string;
+  userId: string | null;
+  displayName: string;
+  createdAt: string;
+}
+
 export interface TeamSummary extends NamedWorkspaceEntity {
   objectId: string;
 }
@@ -196,6 +205,10 @@ export async function createProject(workspaceId: string, name: string, parentCon
   };
 }
 
+export async function listPersons(workspaceId: string) {
+  return request<PersonSummary[]>(`/api/workspaces/${workspaceId}/persons`);
+}
+
 export async function listOrganizations(workspaceId: string) {
   return request<OrganizationSummary[]>(`/api/workspaces/${workspaceId}/organizations`);
 }
@@ -220,6 +233,19 @@ export async function createTeam(workspaceId: string, name: string) {
 
 export async function listTeamMembers(workspaceId: string, teamId: string) {
   return request<TeamMemberSummary[]>(`/api/workspaces/${workspaceId}/teams/${teamId}/members`);
+}
+
+export async function addTeamMember(workspaceId: string, teamId: string, personId: string) {
+  return request<unknown>(`/api/workspaces/${workspaceId}/teams/${teamId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ personId }),
+  });
+}
+
+export async function removeTeamMember(workspaceId: string, teamId: string, personId: string) {
+  return request<unknown>(`/api/workspaces/${workspaceId}/teams/${teamId}/members/${personId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function listJobRoles(workspaceId: string) {
