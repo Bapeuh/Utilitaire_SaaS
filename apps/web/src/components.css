@@ -19,16 +19,38 @@
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.permission-note {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #667085;
+  font-size: 13px;
+}
+
+.workspace-members-panel,
 .team-members-panel {
   display: grid;
   gap: 18px;
 }
 
-.team-members-heading {
-  margin-bottom: 0;
-  align-items: center;
+.workspace-member-list,
+.member-list {
+  display: grid;
+  border-top: 1px solid #eef1f4;
 }
 
+.workspace-member-row,
+.member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid #eef1f4;
+}
+
+.workspace-member-row select,
 .team-select,
 .member-add-row select {
   border: 1px solid #d0d5dd;
@@ -37,6 +59,38 @@
   background: white;
   color: #18202a;
   outline: none;
+}
+
+.workspace-member-row select {
+  min-width: 160px;
+}
+
+.workspace-member-row select:focus,
+.member-add-row select:focus,
+.team-select:focus {
+  border-color: #667085;
+  box-shadow: 0 0 0 3px rgba(102,112,133,.12);
+}
+
+.permission-legend {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.permission-legend strong {
+  color: #344054;
+  margin-bottom: 2px;
+}
+
+.team-members-heading {
+  margin-bottom: 0;
+  align-items: center;
 }
 
 .team-select {
@@ -48,26 +102,6 @@
   grid-template-columns: minmax(220px, 420px) auto;
   gap: 8px;
   align-items: center;
-}
-
-.member-add-row select:focus,
-.team-select:focus {
-  border-color: #667085;
-  box-shadow: 0 0 0 3px rgba(102,112,133,.12);
-}
-
-.member-list {
-  display: grid;
-  border-top: 1px solid #eef1f4;
-}
-
-.member-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 14px 0;
-  border-bottom: 1px solid #eef1f4;
 }
 
 .member-person {
@@ -194,11 +228,13 @@
   }
 
   .team-members-heading,
-  .module-row {
+  .module-row,
+  .workspace-member-row {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .workspace-member-row select,
   .team-select,
   .member-add-row {
     width: 100%;
