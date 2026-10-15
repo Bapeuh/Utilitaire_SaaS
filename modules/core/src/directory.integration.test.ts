@@ -21,6 +21,11 @@ import {
   isWorkspaceModuleEnabled,
   listWorkspaceModules,
 } from "./module-registry.js";
+import {
+  LastWorkspaceAdministratorError,
+  listWorkspaceMembers,
+  updateWorkspaceMemberRole,
+} from "./workspace-members.js";
 import { createWorkspaceForUser } from "./workspace.js";
 
 const databaseUrl =
@@ -96,6 +101,41 @@ describe("Core directory and module registry", () => {
       expect(await listTeamMembers(db, created.workspaceId, team.id)).toHaveLength(1);
     } finally {
       await cleanup(created.workspaceId, userId);
+    }
+  });
+
+  it("lists workspace members, changes roles and protects the last administrator", async () => {
+    const administratorId = randomUUID();
+    const secondUserId = randomUUID();
+    const administratorEmail = `admin-${randomUUID()}@example.test`;
+    const secondEmail = `member-${randomUUID()}@example.test`;
+    await client`insert into users (id, name, email, email_verified) values (${administratorId}, 'Admin User', ${administratorEmail}, false), (${secondUserId}, 'Second User', ${secondEmail}, false)`;
+
+    const created = await createWorkspaceForUser(db, {
+      userId: administratorId,
+      workspaceName: "Role workspace",
+      personDisplayName: "Admin User",
+    });
+
+    try {
+      await client`insert into workspace_users (workspace_id, user_id, role) values (${created.workspaceId}, ${secondUserId}, 'member')`;
+
+      expect(await listWorkspaceMembers(db, created.workspaceId)).toEqual([
+        expect.objectContaining({ userId: administratorId, role: "administrator", email: administratorEmail }),
+        expect.objectContaining({ userId: secondUserId, role: "member", email: secondEmail }),
+      ]);
+
+      const promoted = await updateWorkspaceMemberRole(db, created.workspaceId, secondUserId, "manager");
+      expect(promoted?.role).toBe("manager");
+
+      await expect(updateWorkspaceMemberRole(db, created.workspaceId, administratorId, "member")).rejects.toBeInstanceOf(LastWorkspaceAdministratorError);
+
+      await updateWorkspaceMemberRole(db, created.workspaceId, secondUserId, "administrator");
+      const demoted = await updateWorkspaceMemberRole(db, created.workspaceId, administratorId, "manager");
+      expect(demoted?.role).toBe("manager");
+    } finally {
+      await cleanup(created.workspaceId, administratorId);
+      await client`delete from users where id = ${secondUserId}`;
     }
   });
 
