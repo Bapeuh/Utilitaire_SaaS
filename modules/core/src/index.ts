@@ -27,8 +27,10 @@ export {
   getWorkspaceRootContextId,
   listJobRoles,
   listOrganizations,
+  listPersons,
   listTeamMembers,
   listTeams,
+  removeTeamMember,
 } from "./directory.js";
 
 export {
