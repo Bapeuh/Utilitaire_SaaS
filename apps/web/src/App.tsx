@@ -137,7 +137,7 @@ function WorkspaceSwitcher({ workspaces, selectedId, onSelect, onCreated }: { wo
 
 function NavButton({ active, onClick, children }: React.PropsWithChildren<{ active: boolean; onClick: () => void }>) { return <button className={active ? "nav-button active" : "nav-button"} onClick={onClick}>{children}</button>; }
 
-function SectionContent({ section, currentUserId, workspace, capabilities, scopes, projects, organizations, teams, jobRoles, modules, workspaceMembers, loading }: { section: Section; currentUserId: string; workspace: WorkspaceSummary; capabilities?: WorkspaceCapabilities; scopes: ContextEntitySummary[]; projects: ContextEntitySummary[]; organizations: OrganizationSummary[]; teams: TeamSummary[]; jobRoles: NamedWorkspaceEntity[]; modules: WorkspaceModuleSummary[]; workspaceMembers: WorkspaceMemberSummary[]; loading: boolean }) {
+function SectionContent({ section, currentUserId, workspace, capabilities, scopes, projects, organizations, teams, jobRoles, modules, workspaceMembers, loading }: { section: Section; currentUserId: string; workspace: WorkspaceSummary; capabilities: WorkspaceCapabilities | undefined; scopes: ContextEntitySummary[]; projects: ContextEntitySummary[]; organizations: OrganizationSummary[]; teams: TeamSummary[]; jobRoles: NamedWorkspaceEntity[]; modules: WorkspaceModuleSummary[]; workspaceMembers: WorkspaceMemberSummary[]; loading: boolean }) {
   if (loading) return <div className="center-content"><div className="spinner" />Chargement…</div>;
   const caps = capabilities ?? emptyCapabilities;
   if (section === "overview") return <Overview workspace={workspace} scopes={scopes} projects={projects} teams={teams} modules={modules} />;
