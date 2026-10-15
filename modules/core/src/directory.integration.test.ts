@@ -10,8 +10,10 @@ import {
   createTeam,
   listJobRoles,
   listOrganizations,
+  listPersons,
   listTeamMembers,
   listTeams,
+  removeTeamMember,
 } from "./directory.js";
 import {
   disableWorkspaceModule,
@@ -51,7 +53,7 @@ afterAll(async () => {
 });
 
 describe("Core directory and module registry", () => {
-  it("creates and lists organizations, teams, team members and job roles", async () => {
+  it("creates and lists organizations, teams, people, team members and job roles", async () => {
     const userId = randomUUID();
     const email = `directory-${randomUUID()}@example.test`;
     await client`insert into users (id, name, email, email_verified) values (${userId}, 'Directory User', ${email}, false)`;
@@ -76,9 +78,22 @@ describe("Core directory and module registry", () => {
       expect((await listOrganizations(db, created.workspaceId)).map((row) => row.name)).toEqual(["Backlight"]);
       expect((await listTeams(db, created.workspaceId)).map((row) => row.name)).toEqual(["Operations"]);
       expect((await listJobRoles(db, created.workspaceId)).map((row) => row.name)).toEqual(["Operator"]);
+      expect(await listPersons(db, created.workspaceId)).toEqual([
+        expect.objectContaining({ id: created.personId, displayName: "Directory User", userId }),
+      ]);
       expect(await listTeamMembers(db, created.workspaceId, team.id)).toEqual([
         expect.objectContaining({ personId: created.personId, displayName: "Directory User" }),
       ]);
+
+      const removed = await removeTeamMember(db, created.workspaceId, team.id, created.personId);
+      expect(removed?.id).toBe(membership.id);
+      expect(removed?.archivedAt).toBeInstanceOf(Date);
+      expect(await listTeamMembers(db, created.workspaceId, team.id)).toEqual([]);
+
+      const reactivated = await addTeamMember(db, created.workspaceId, team.id, created.personId);
+      expect(reactivated.id).toBe(membership.id);
+      expect(reactivated.archivedAt).toBeNull();
+      expect(await listTeamMembers(db, created.workspaceId, team.id)).toHaveLength(1);
     } finally {
       await cleanup(created.workspaceId, userId);
     }
