@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   NotFoundException,
@@ -27,12 +28,14 @@ import {
   InvalidParentContextError,
   listJobRoles,
   listOrganizations,
+  listPersons,
   listProjects,
   listScopes,
   listTeamMembers,
   listTeams,
   listWorkspaceModules,
   listWorkspacesForUser,
+  removeTeamMember,
 } from "@utilitaire/core";
 import { hasPermission } from "@utilitaire/permissions";
 import type { Request } from "express";
@@ -235,6 +238,13 @@ export class WorkspacesController {
     return project;
   }
 
+  @Get(":workspaceId/persons")
+  async listPersons(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
+    const user = await this.requireUser(request);
+    await this.requireRootPermission(workspaceId, user.id, "core.team.read");
+    return listPersons(apiDatabase, workspaceId);
+  }
+
   @Post(":workspaceId/organizations")
   async createOrganization(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Body() body: NamedEntityBody) {
     const user = await this.requireUser(request);
@@ -280,6 +290,20 @@ export class WorkspacesController {
     const user = await this.requireUser(request);
     await this.requireRootPermission(workspaceId, user.id, "core.team.read");
     return listTeamMembers(apiDatabase, workspaceId, teamId);
+  }
+
+  @Delete(":workspaceId/teams/:teamId/members/:personId")
+  async removeTeamMember(
+    @Req() request: Request,
+    @Param("workspaceId") workspaceId: string,
+    @Param("teamId") teamId: string,
+    @Param("personId") personId: string,
+  ) {
+    const user = await this.requireUser(request);
+    await this.requireRootPermission(workspaceId, user.id, "core.team.manage");
+    const removed = await removeTeamMember(apiDatabase, workspaceId, teamId, personId);
+    if (!removed) throw new NotFoundException();
+    return removed;
   }
 
   @Post(":workspaceId/job-roles")
