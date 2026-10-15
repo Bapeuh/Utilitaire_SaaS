@@ -36,6 +36,8 @@ const systemRoles = [
 
 const corePermissions = [
   { key: "core.workspace.read", moduleKey: "core", objectType: "workspace", action: "read" },
+  { key: "core.workspace_member.read", moduleKey: "core", objectType: "workspace_member", action: "read" },
+  { key: "core.workspace_member.manage", moduleKey: "core", objectType: "workspace_member", action: "manage" },
   { key: "core.scope.create", moduleKey: "core", objectType: "scope", action: "create" },
   { key: "core.scope.read", moduleKey: "core", objectType: "scope", action: "read" },
   { key: "core.project.create", moduleKey: "core", objectType: "project", action: "create" },
@@ -50,6 +52,62 @@ const corePermissions = [
   { key: "core.module.read", moduleKey: "core", objectType: "module", action: "read" },
   { key: "core.module.manage", moduleKey: "core", objectType: "module", action: "manage" },
 ];
+
+const rolePermissionKeys = {
+  administrator: corePermissions.map((permission) => permission.key),
+  manager: [
+    "core.workspace.read",
+    "core.workspace_member.read",
+    "core.scope.create",
+    "core.scope.read",
+    "core.project.create",
+    "core.project.read",
+    "core.organization.create",
+    "core.organization.read",
+    "core.team.create",
+    "core.team.read",
+    "core.team.manage",
+    "core.job_role.create",
+    "core.job_role.read",
+    "core.module.read",
+  ],
+  member: [
+    "core.workspace.read",
+    "core.workspace_member.read",
+    "core.scope.read",
+    "core.project.read",
+    "core.organization.read",
+    "core.team.read",
+    "core.job_role.read",
+    "core.module.read",
+  ],
+  guest: ["core.workspace.read", "core.scope.read", "core.project.read"],
+} as const;
+
+export async function ensureCorePermissionsForWorkspace(db: Database, workspaceId: string) {
+  await db.insert(permissions).values(corePermissions).onConflictDoNothing();
+
+  const permissionRows = await db
+    .select({ id: permissions.id, key: permissions.key })
+    .from(permissions)
+    .where(inArray(permissions.key, corePermissions.map((permission) => permission.key)));
+
+  const roleRows = await db
+    .select({ id: accessRoles.id, systemKey: accessRoles.systemKey })
+    .from(accessRoles)
+    .where(and(eq(accessRoles.workspaceId, workspaceId), isNull(accessRoles.archivedAt)));
+
+  const permissionIdByKey = new Map(permissionRows.map((permission) => [permission.key, permission.id]));
+  const values = roleRows.flatMap((role) => {
+    if (!role.systemKey) return [];
+    return rolePermissionKeys[role.systemKey].flatMap((key) => {
+      const permissionId = permissionIdByKey.get(key);
+      return permissionId ? [{ workspaceId, accessRoleId: role.id, permissionId }] : [];
+    });
+  });
+
+  if (values.length) await db.insert(accessRolePermissions).values(values).onConflictDoNothing();
+}
 
 export async function listWorkspacesForUser(db: Database, userId: string) {
   return db
@@ -122,18 +180,20 @@ export async function createWorkspaceForUser(
       )
       .returning({ id: accessRoles.id, systemKey: accessRoles.systemKey });
 
-    const administratorRole = createdRoles.find((role) => role.systemKey === "administrator");
-    if (!administratorRole || createdRoles.length !== systemRoles.length) {
+    if (createdRoles.length !== systemRoles.length) {
       throw new Error("Workspace system roles bootstrap failed");
     }
 
-    await tx.insert(accessRolePermissions).values(
-      permissionRows.map((permission) => ({
-        workspaceId: workspace.id,
-        accessRoleId: administratorRole.id,
-        permissionId: permission.id,
-      })),
-    );
+    const permissionIdByKey = new Map(permissionRows.map((permission) => [permission.key, permission.id]));
+    const rolePermissionValues = createdRoles.flatMap((role) => {
+      if (!role.systemKey) return [];
+      return rolePermissionKeys[role.systemKey].flatMap((key) => {
+        const permissionId = permissionIdByKey.get(key);
+        return permissionId ? [{ workspaceId: workspace.id, accessRoleId: role.id, permissionId }] : [];
+      });
+    });
+
+    if (rolePermissionValues.length) await tx.insert(accessRolePermissions).values(rolePermissionValues);
 
     const [personObject] = await tx
       .insert(objects)
