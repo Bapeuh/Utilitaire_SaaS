@@ -34,6 +34,21 @@ export async function getWorkspaceRootContextId(db: Database, workspaceId: strin
   return requireWorkspaceRootContextId(db, workspaceId);
 }
 
+export async function listPersons(db: Database, workspaceId: string) {
+  return db
+    .select({
+      id: persons.id,
+      workspaceId: persons.workspaceId,
+      objectId: persons.objectId,
+      userId: persons.userId,
+      displayName: persons.displayName,
+      createdAt: persons.createdAt,
+    })
+    .from(persons)
+    .where(and(eq(persons.workspaceId, workspaceId), isNull(persons.archivedAt)))
+    .orderBy(asc(persons.displayName));
+}
+
 export async function createOrganization(db: Database, workspaceId: string, name: string) {
   return db.transaction(async (tx) => {
     const rootContextId = await requireWorkspaceRootContextId(tx, workspaceId);
@@ -84,14 +99,6 @@ export async function listTeams(db: Database, workspaceId: string) {
 }
 
 export async function addTeamMember(db: Database, workspaceId: string, teamId: string, personId: string) {
-  const [membership] = await db
-    .insert(teamMembers)
-    .values({ workspaceId, teamId, personId })
-    .onConflictDoNothing({ target: [teamMembers.workspaceId, teamMembers.teamId, teamMembers.personId] })
-    .returning();
-
-  if (membership) return membership;
-
   const [existing] = await db
     .select()
     .from(teamMembers)
@@ -104,8 +111,43 @@ export async function addTeamMember(db: Database, workspaceId: string, teamId: s
     )
     .limit(1);
 
-  if (!existing) throw new Error("Team member creation failed");
-  return existing;
+  if (existing) {
+    if (existing.archivedAt === null) return existing;
+
+    const [reactivated] = await db
+      .update(teamMembers)
+      .set({ archivedAt: null })
+      .where(eq(teamMembers.id, existing.id))
+      .returning();
+
+    if (!reactivated) throw new Error("Team member reactivation failed");
+    return reactivated;
+  }
+
+  const [membership] = await db
+    .insert(teamMembers)
+    .values({ workspaceId, teamId, personId })
+    .returning();
+
+  if (!membership) throw new Error("Team member creation failed");
+  return membership;
+}
+
+export async function removeTeamMember(db: Database, workspaceId: string, teamId: string, personId: string) {
+  const [membership] = await db
+    .update(teamMembers)
+    .set({ archivedAt: new Date() })
+    .where(
+      and(
+        eq(teamMembers.workspaceId, workspaceId),
+        eq(teamMembers.teamId, teamId),
+        eq(teamMembers.personId, personId),
+        isNull(teamMembers.archivedAt),
+      ),
+    )
+    .returning();
+
+  return membership ?? null;
 }
 
 export async function listTeamMembers(db: Database, workspaceId: string, teamId: string) {
