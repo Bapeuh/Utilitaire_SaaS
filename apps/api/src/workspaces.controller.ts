@@ -7,6 +7,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -22,10 +23,12 @@ import {
   createWorkspaceForUser,
   disableWorkspaceModule,
   enableWorkspaceModule,
+  ensureCorePermissionsForWorkspace,
   getProject,
   getScope,
   getWorkspaceRootContextId,
   InvalidParentContextError,
+  LastWorkspaceAdministratorError,
   listJobRoles,
   listOrganizations,
   listPersons,
@@ -33,9 +36,12 @@ import {
   listScopes,
   listTeamMembers,
   listTeams,
+  listWorkspaceMembers,
   listWorkspaceModules,
   listWorkspacesForUser,
   removeTeamMember,
+  updateWorkspaceMemberRole,
+  type WorkspaceSystemRole,
 } from "@utilitaire/core";
 import { hasPermission } from "@utilitaire/permissions";
 import type { Request } from "express";
@@ -64,6 +70,22 @@ interface EnableModuleBody {
   installedVersion?: unknown;
 }
 
+interface WorkspaceMemberRoleBody {
+  role?: unknown;
+}
+
+const capabilityKeys = [
+  "core.scope.create",
+  "core.project.create",
+  "core.organization.create",
+  "core.team.create",
+  "core.team.manage",
+  "core.job_role.create",
+  "core.module.manage",
+  "core.workspace_member.read",
+  "core.workspace_member.manage",
+] as const;
+
 function requireName(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new BadRequestException(`${label} name is required`);
@@ -82,6 +104,11 @@ function requireParentContextId(value: unknown): string {
   return requireString(value, "parentContextId");
 }
 
+function requireWorkspaceRole(value: unknown): WorkspaceSystemRole {
+  if (value === "administrator" || value === "manager" || value === "member" || value === "guest") return value;
+  throw new BadRequestException("role must be administrator, manager, member or guest");
+}
+
 @Controller("api/workspaces")
 export class WorkspacesController {
   private async requireUser(request: Request) {
@@ -98,6 +125,7 @@ export class WorkspacesController {
       throw new NotFoundException();
     }
 
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const allowed = await hasPermission(apiDatabase, {
       workspaceId,
       userId,
@@ -130,11 +158,28 @@ export class WorkspacesController {
     });
   }
 
+  @Get(":workspaceId/capabilities")
+  async capabilities(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
+    const user = await this.requireUser(request);
+    const rootContextId = await getWorkspaceRootContextId(apiDatabase, workspaceId).catch(() => null);
+    if (!rootContextId) throw new NotFoundException();
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
+
+    const entries = await Promise.all(
+      capabilityKeys.map(async (permissionKey) => [
+        permissionKey,
+        await hasPermission(apiDatabase, { workspaceId, userId: user.id, contextId: rootContextId, permissionKey }),
+      ] as const),
+    );
+    return Object.fromEntries(entries);
+  }
+
   @Post(":workspaceId/scopes")
   async createScope(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Body() body: CreateContextEntityBody) {
     const user = await this.requireUser(request);
     const name = requireName(body.name, "Scope");
     const parentContextId = requireParentContextId(body.parentContextId);
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const allowed = await hasPermission(apiDatabase, {
       workspaceId,
       userId: user.id,
@@ -154,6 +199,7 @@ export class WorkspacesController {
   @Get(":workspaceId/scopes")
   async listScopes(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
     const user = await this.requireUser(request);
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const scopeRows = await listScopes(apiDatabase, workspaceId);
     const readable = await Promise.all(
       scopeRows.map(async (scope) => ({
@@ -172,6 +218,7 @@ export class WorkspacesController {
   @Get(":workspaceId/scopes/:scopeId")
   async getScope(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Param("scopeId") scopeId: string) {
     const user = await this.requireUser(request);
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const scope = await getScope(apiDatabase, workspaceId, scopeId);
     if (!scope) throw new NotFoundException();
     const allowed = await hasPermission(apiDatabase, {
@@ -189,6 +236,7 @@ export class WorkspacesController {
     const user = await this.requireUser(request);
     const name = requireName(body.name, "Project");
     const parentContextId = requireParentContextId(body.parentContextId);
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const allowed = await hasPermission(apiDatabase, {
       workspaceId,
       userId: user.id,
@@ -208,6 +256,7 @@ export class WorkspacesController {
   @Get(":workspaceId/projects")
   async listProjects(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
     const user = await this.requireUser(request);
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const projectRows = await listProjects(apiDatabase, workspaceId);
     const readable = await Promise.all(
       projectRows.map(async (project) => ({
@@ -226,6 +275,7 @@ export class WorkspacesController {
   @Get(":workspaceId/projects/:projectId")
   async getProject(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Param("projectId") projectId: string) {
     const user = await this.requireUser(request);
+    await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const project = await getProject(apiDatabase, workspaceId, projectId);
     if (!project) throw new NotFoundException();
     const allowed = await hasPermission(apiDatabase, {
@@ -243,6 +293,32 @@ export class WorkspacesController {
     const user = await this.requireUser(request);
     await this.requireRootPermission(workspaceId, user.id, "core.team.read");
     return listPersons(apiDatabase, workspaceId);
+  }
+
+  @Get(":workspaceId/members")
+  async listMembers(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
+    const user = await this.requireUser(request);
+    await this.requireRootPermission(workspaceId, user.id, "core.workspace_member.read");
+    return listWorkspaceMembers(apiDatabase, workspaceId);
+  }
+
+  @Patch(":workspaceId/members/:userId/role")
+  async updateMemberRole(
+    @Req() request: Request,
+    @Param("workspaceId") workspaceId: string,
+    @Param("userId") targetUserId: string,
+    @Body() body: WorkspaceMemberRoleBody,
+  ) {
+    const user = await this.requireUser(request);
+    await this.requireRootPermission(workspaceId, user.id, "core.workspace_member.manage");
+    try {
+      const updated = await updateWorkspaceMemberRole(apiDatabase, workspaceId, targetUserId, requireWorkspaceRole(body.role));
+      if (!updated) throw new NotFoundException();
+      return updated;
+    } catch (error) {
+      if (error instanceof LastWorkspaceAdministratorError) throw new BadRequestException(error.message);
+      throw error;
+    }
   }
 
   @Post(":workspaceId/organizations")
