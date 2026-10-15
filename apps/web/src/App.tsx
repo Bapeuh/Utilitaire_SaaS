@@ -2,6 +2,7 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  addTeamMember,
   createJobRole,
   createOrganization,
   createProject,
@@ -14,16 +15,21 @@ import {
   listJobRoles,
   listModules,
   listOrganizations,
+  listPersons,
   listProjects,
   listScopes,
+  listTeamMembers,
   listTeams,
   listWorkspaces,
+  removeTeamMember,
   signIn,
   signOut,
   signUp,
   type ContextEntitySummary,
   type NamedWorkspaceEntity,
   type OrganizationSummary,
+  type PersonSummary,
+  type TeamMemberSummary,
   type TeamSummary,
   type WorkspaceModuleSummary,
   type WorkspaceSummary,
@@ -231,11 +237,88 @@ function ContextEntitySection({ kind, workspace, scopes, items }: { kind: "scope
 }
 
 function PeopleSection({ workspace, organizations, teams, jobRoles }: { workspace: WorkspaceSummary; organizations: OrganizationSummary[]; teams: TeamSummary[]; jobRoles: NamedWorkspaceEntity[] }) {
-  return <div className="people-grid">
-    <NamedEntityPanel title="Organizations" subtitle="Structures liées au workspace" placeholder="Nouvelle organization" items={organizations} onCreate={(name) => createOrganization(workspace.id, name)} queryKey="organizations" workspaceId={workspace.id} />
-    <NamedEntityPanel title="Teams" subtitle="Équipes opérationnelles" placeholder="Nouvelle équipe" items={teams} onCreate={(name) => createTeam(workspace.id, name)} queryKey="teams" workspaceId={workspace.id} />
-    <NamedEntityPanel title="Job Roles" subtitle="Rôles métiers réutilisables" placeholder="Nouveau rôle" items={jobRoles} onCreate={(name) => createJobRole(workspace.id, name)} queryKey="job-roles" workspaceId={workspace.id} />
+  return <div className="people-stack">
+    <div className="people-grid">
+      <NamedEntityPanel title="Organizations" subtitle="Structures liées au workspace" placeholder="Nouvelle organization" items={organizations} onCreate={(name) => createOrganization(workspace.id, name)} queryKey="organizations" workspaceId={workspace.id} />
+      <NamedEntityPanel title="Teams" subtitle="Équipes opérationnelles" placeholder="Nouvelle équipe" items={teams} onCreate={(name) => createTeam(workspace.id, name)} queryKey="teams" workspaceId={workspace.id} />
+      <NamedEntityPanel title="Job Roles" subtitle="Rôles métiers réutilisables" placeholder="Nouveau rôle" items={jobRoles} onCreate={(name) => createJobRole(workspace.id, name)} queryKey="job-roles" workspaceId={workspace.id} />
+    </div>
+    <TeamMembersPanel workspace={workspace} teams={teams} />
   </div>;
+}
+
+function TeamMembersPanel({ workspace, teams }: { workspace: WorkspaceSummary; teams: TeamSummary[] }) {
+  const queryClient = useQueryClient();
+  const [selectedTeamId, setSelectedTeamId] = React.useState(teams[0]?.id ?? "");
+  const [selectedPersonId, setSelectedPersonId] = React.useState("");
+
+  React.useEffect(() => {
+    if (!teams.some((team) => team.id === selectedTeamId)) setSelectedTeamId(teams[0]?.id ?? "");
+  }, [teams, selectedTeamId]);
+
+  const personsQuery = useQuery({
+    queryKey: ["persons", workspace.id],
+    queryFn: () => listPersons(workspace.id),
+  });
+
+  const membersQuery = useQuery({
+    queryKey: ["team-members", workspace.id, selectedTeamId],
+    queryFn: () => listTeamMembers(workspace.id, selectedTeamId),
+    enabled: Boolean(selectedTeamId),
+  });
+
+  const persons = personsQuery.data ?? [];
+  const members = membersQuery.data ?? [];
+  const memberIds = new Set(members.map((member) => member.personId));
+  const availablePersons = persons.filter((person) => !memberIds.has(person.id));
+
+  React.useEffect(() => {
+    if (!availablePersons.some((person) => person.id === selectedPersonId)) {
+      setSelectedPersonId(availablePersons[0]?.id ?? "");
+    }
+  }, [availablePersons, selectedPersonId]);
+
+  const addMutation = useMutation({
+    mutationFn: () => addTeamMember(workspace.id, selectedTeamId, selectedPersonId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["team-members", workspace.id, selectedTeamId] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (personId: string) => removeTeamMember(workspace.id, selectedTeamId, personId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["team-members", workspace.id, selectedTeamId] });
+    },
+  });
+
+  return <div className="panel team-members-panel">
+    <div className="panel-heading team-members-heading">
+      <div><span className="eyebrow">People</span><h2>Membres des Teams</h2><p>Ajoutez ou retirez les personnes du workspace dans une équipe.</p></div>
+      {teams.length > 0 && <select className="team-select" value={selectedTeamId} onChange={(event) => setSelectedTeamId(event.target.value)}>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>}
+    </div>
+
+    {teams.length === 0 ? <p className="muted">Créez d’abord une Team.</p> : (
+      <>
+        <div className="member-add-row">
+          <select value={selectedPersonId} onChange={(event) => setSelectedPersonId(event.target.value)} disabled={availablePersons.length === 0 || personsQuery.isLoading}>
+            {availablePersons.length === 0 ? <option value="">Toutes les personnes sont déjà membres</option> : availablePersons.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+          </select>
+          <button className="small-primary dark" disabled={!selectedPersonId || addMutation.isPending} onClick={() => addMutation.mutate()}>{addMutation.isPending ? "Ajout…" : "Ajouter"}</button>
+        </div>
+
+        {(personsQuery.isError || membersQuery.isError || addMutation.isError || removeMutation.isError) && <div className="error-box">La gestion des membres a rencontré une erreur.</div>}
+
+        {membersQuery.isLoading ? <p className="muted">Chargement des membres…</p> : members.length ? <div className="member-list">{members.map((member) => <MemberRow key={member.membershipId} member={member} onRemove={() => removeMutation.mutate(member.personId)} disabled={removeMutation.isPending} />)}</div> : <p className="muted">Cette Team n’a encore aucun membre.</p>}
+
+        <p className="member-footnote">{persons.length} personne{persons.length > 1 ? "s" : ""} dans le workspace · {members.length} dans cette Team</p>
+      </>
+    )}
+  </div>;
+}
+
+function MemberRow({ member, onRemove, disabled }: { member: TeamMemberSummary; onRemove: () => void; disabled: boolean }) {
+  return <div className="member-row"><div className="member-person"><div className="avatar light">{member.displayName.slice(0, 1).toUpperCase()}</div><div><strong>{member.displayName}</strong><span>{member.userId ? "Compte utilisateur lié" : "Personne sans compte"}</span></div></div><button className="small-ghost danger" onClick={onRemove} disabled={disabled}>Retirer</button></div>;
 }
 
 function NamedEntityPanel({ title, subtitle, placeholder, items, onCreate, queryKey, workspaceId }: { title: string; subtitle: string; placeholder: string; items: Array<{ id: string; name: string }>; onCreate: (name: string) => Promise<unknown>; queryKey: string; workspaceId: string }) {
