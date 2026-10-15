@@ -34,6 +34,13 @@ export {
 } from "./directory.js";
 
 export {
+  LastWorkspaceAdministratorError,
+  listWorkspaceMembers,
+  updateWorkspaceMemberRole,
+  type WorkspaceSystemRole,
+} from "./workspace-members.js";
+
+export {
   disableWorkspaceModule,
   enableWorkspaceModule,
   isWorkspaceModuleEnabled,
