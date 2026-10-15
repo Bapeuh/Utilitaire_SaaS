@@ -1,5 +1,7 @@
 const API_URL = "http://localhost:3000";
 
+export type WorkspaceRole = "administrator" | "manager" | "member" | "guest";
+
 export interface SessionUser {
   id: string;
   name: string;
@@ -9,7 +11,7 @@ export interface SessionUser {
 export interface WorkspaceSummary {
   id: string;
   name: string;
-  role: "administrator" | "manager" | "member" | "guest";
+  role: WorkspaceRole;
   rootContextId: string;
   createdAt: string;
 }
@@ -69,6 +71,29 @@ export interface PersonSummary {
   displayName: string;
   createdAt: string;
 }
+
+export interface WorkspaceMemberSummary {
+  membershipId: string;
+  userId: string;
+  role: WorkspaceRole;
+  name: string;
+  email: string;
+  personId: string | null;
+  personDisplayName: string | null;
+}
+
+export type WorkspaceCapabilities = Record<
+  | "core.scope.create"
+  | "core.project.create"
+  | "core.organization.create"
+  | "core.team.create"
+  | "core.team.manage"
+  | "core.job_role.create"
+  | "core.module.manage"
+  | "core.workspace_member.read"
+  | "core.workspace_member.manage",
+  boolean
+>;
 
 export interface TeamSummary extends NamedWorkspaceEntity {
   objectId: string;
@@ -151,6 +176,21 @@ export async function createWorkspace(name: string, personDisplayName?: string) 
   });
 }
 
+export async function getWorkspaceCapabilities(workspaceId: string) {
+  return request<WorkspaceCapabilities>(`/api/workspaces/${workspaceId}/capabilities`);
+}
+
+export async function listWorkspaceMembers(workspaceId: string) {
+  return request<WorkspaceMemberSummary[]>(`/api/workspaces/${workspaceId}/members`);
+}
+
+export async function updateWorkspaceMemberRole(workspaceId: string, userId: string, role: WorkspaceRole) {
+  return request<unknown>(`/api/workspaces/${workspaceId}/members/${userId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
 export async function listScopes(workspaceId: string): Promise<ContextEntitySummary[]> {
   const rows = await request<ScopeApiSummary[]>(`/api/workspaces/${workspaceId}/scopes`);
   return rows.map((row) => ({
@@ -168,14 +208,7 @@ export async function createScope(workspaceId: string, name: string, parentConte
     method: "POST",
     body: JSON.stringify({ name, parentContextId }),
   });
-  return {
-    id: row.scopeId,
-    contextId: row.contextId,
-    objectId: row.objectId,
-    parentContextId,
-    name,
-    createdAt: new Date().toISOString(),
-  };
+  return { id: row.scopeId, contextId: row.contextId, objectId: row.objectId, parentContextId, name, createdAt: new Date().toISOString() };
 }
 
 export async function listProjects(workspaceId: string): Promise<ContextEntitySummary[]> {
@@ -195,14 +228,7 @@ export async function createProject(workspaceId: string, name: string, parentCon
     method: "POST",
     body: JSON.stringify({ name, parentContextId }),
   });
-  return {
-    id: row.projectId,
-    contextId: row.contextId,
-    objectId: row.objectId,
-    parentContextId,
-    name,
-    createdAt: new Date().toISOString(),
-  };
+  return { id: row.projectId, contextId: row.contextId, objectId: row.objectId, parentContextId, name, createdAt: new Date().toISOString() };
 }
 
 export async function listPersons(workspaceId: string) {
@@ -214,10 +240,7 @@ export async function listOrganizations(workspaceId: string) {
 }
 
 export async function createOrganization(workspaceId: string, name: string) {
-  return request<OrganizationSummary>(`/api/workspaces/${workspaceId}/organizations`, {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  });
+  return request<OrganizationSummary>(`/api/workspaces/${workspaceId}/organizations`, { method: "POST", body: JSON.stringify({ name }) });
 }
 
 export async function listTeams(workspaceId: string) {
@@ -225,10 +248,7 @@ export async function listTeams(workspaceId: string) {
 }
 
 export async function createTeam(workspaceId: string, name: string) {
-  return request<TeamSummary>(`/api/workspaces/${workspaceId}/teams`, {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  });
+  return request<TeamSummary>(`/api/workspaces/${workspaceId}/teams`, { method: "POST", body: JSON.stringify({ name }) });
 }
 
 export async function listTeamMembers(workspaceId: string, teamId: string) {
@@ -236,16 +256,11 @@ export async function listTeamMembers(workspaceId: string, teamId: string) {
 }
 
 export async function addTeamMember(workspaceId: string, teamId: string, personId: string) {
-  return request<unknown>(`/api/workspaces/${workspaceId}/teams/${teamId}/members`, {
-    method: "POST",
-    body: JSON.stringify({ personId }),
-  });
+  return request<unknown>(`/api/workspaces/${workspaceId}/teams/${teamId}/members`, { method: "POST", body: JSON.stringify({ personId }) });
 }
 
 export async function removeTeamMember(workspaceId: string, teamId: string, personId: string) {
-  return request<unknown>(`/api/workspaces/${workspaceId}/teams/${teamId}/members/${personId}`, {
-    method: "DELETE",
-  });
+  return request<unknown>(`/api/workspaces/${workspaceId}/teams/${teamId}/members/${personId}`, { method: "DELETE" });
 }
 
 export async function listJobRoles(workspaceId: string) {
@@ -253,10 +268,7 @@ export async function listJobRoles(workspaceId: string) {
 }
 
 export async function createJobRole(workspaceId: string, name: string) {
-  return request<NamedWorkspaceEntity>(`/api/workspaces/${workspaceId}/job-roles`, {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  });
+  return request<NamedWorkspaceEntity>(`/api/workspaces/${workspaceId}/job-roles`, { method: "POST", body: JSON.stringify({ name }) });
 }
 
 export async function listModules(workspaceId: string) {
@@ -271,7 +283,5 @@ export async function enableModule(workspaceId: string, moduleKey: string, insta
 }
 
 export async function disableModule(workspaceId: string, moduleKey: string) {
-  return request<WorkspaceModuleSummary>(`/api/workspaces/${workspaceId}/modules/${moduleKey}/disable`, {
-    method: "POST",
-  });
+  return request<WorkspaceModuleSummary>(`/api/workspaces/${workspaceId}/modules/${moduleKey}/disable`, { method: "POST" });
 }
