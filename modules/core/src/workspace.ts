@@ -109,6 +109,24 @@ export async function ensureCorePermissionsForWorkspace(db: Database, workspaceI
   if (values.length) await db.insert(accessRolePermissions).values(values).onConflictDoNothing();
 }
 
+export async function isActiveWorkspaceMember(db: Database, workspaceId: string, userId: string) {
+  const [membership] = await db
+    .select({ id: workspaceUsers.id })
+    .from(workspaceUsers)
+    .innerJoin(workspaces, eq(workspaces.id, workspaceUsers.workspaceId))
+    .where(
+      and(
+        eq(workspaceUsers.workspaceId, workspaceId),
+        eq(workspaceUsers.userId, userId),
+        isNull(workspaceUsers.archivedAt),
+        isNull(workspaces.archivedAt),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(membership);
+}
+
 export async function listWorkspacesForUser(db: Database, userId: string) {
   return db
     .select({
