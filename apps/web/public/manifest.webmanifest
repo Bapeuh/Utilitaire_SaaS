@@ -1,0 +1,19 @@
+{
+  "name": "Utilitaire SaaS",
+  "short_name": "Utilitaire",
+  "description": "Plateforme SaaS modulaire pour structurer les opérations, projets, équipes et événements.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#111827",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
