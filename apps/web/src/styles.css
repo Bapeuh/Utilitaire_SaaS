@@ -120,21 +120,40 @@ button { cursor: pointer; }
   .auth-layout { grid-template-columns: 1fr; }
   .auth-intro { min-height: 44vh; gap: 64px; }
   .app-shell { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; }
-  .nav-list { grid-template-columns: repeat(5, minmax(max-content, 1fr)); overflow-x: auto; }
-  .sidebar-footer { margin-top: 0; }
+  .sidebar {
+    position: static;
+    height: auto;
+    padding-top: max(18px, env(safe-area-inset-top));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .workspace-switcher { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+  .workspace-switcher .inline-create { grid-column: 1 / -1; }
+  .new-workspace { white-space: nowrap; padding: 9px 4px; }
+  .nav-list { grid-template-columns: repeat(5, minmax(max-content, 1fr)); overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+  .sidebar-footer { margin-top: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .ghost-button { white-space: nowrap; }
   .dashboard-grid { grid-template-columns: 1fr; }
   .panel.wide { grid-column: auto; }
+  .content-area { padding-bottom: max(56px, calc(32px + env(safe-area-inset-bottom))); }
 }
 
 @media (max-width: 680px) {
   .entity-create-form { grid-template-columns: 1fr; }
+  .panel { padding: 18px; }
+  .stat-card { padding: 18px; }
+  .empty-state { min-height: 280px; padding: 28px 18px; }
+  .structure-item { padding-left: 16px; }
+  .structure-item.project { padding-left: 32px; }
 }
 
 @media (max-width: 560px) {
   .auth-panel { padding: 28px 20px; }
   .auth-intro h1 { font-size: 44px; }
   .content-area { padding: 26px 16px 48px; }
-  .page-header { align-items: flex-start; flex-direction: column; }
+  .page-header { align-items: flex-start; flex-direction: column; margin-bottom: 24px; }
   .nav-list { grid-template-columns: repeat(5, max-content); }
+  .sidebar-footer { grid-template-columns: 1fr; }
+  .workspace-switcher { grid-template-columns: 1fr; }
+  .new-workspace { justify-self: start; }
 }
