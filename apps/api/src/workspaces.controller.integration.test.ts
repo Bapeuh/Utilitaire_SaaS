@@ -65,7 +65,7 @@ function sessionFor(user: { id: string; name: string; email: string }) {
 }
 
 beforeEach(() => {
-  getAuthSessionMock.reset();
+  getAuthSessionMock.mockReset();
 });
 
 afterAll(async () => {
