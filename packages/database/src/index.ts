@@ -1,1 +1,5 @@
-export const DATABASE_PACKAGE_READY = true;
+export { createDatabase } from "./client.js";
+export * from "./schema.js";
+export * from "./transverse.js";
+export * as databaseSchema from "./schema.js";
+export * as transverseDatabaseSchema from "./transverse.js";

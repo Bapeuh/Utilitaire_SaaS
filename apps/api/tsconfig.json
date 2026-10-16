@@ -1,1 +1,1 @@
-{"extends":"../../tsconfig.base.json","compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","experimentalDecorators":true,"emitDecoratorMetadata":true,"outDir":"dist","rootDir":"src"},"include":["src/**/*.ts"]}
+{"extends":"../../tsconfig.base.json","compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","experimentalDecorators":true,"emitDecoratorMetadata":true,"declaration":false,"outDir":"dist","rootDir":"src"},"include":["src/**/*.ts"]}

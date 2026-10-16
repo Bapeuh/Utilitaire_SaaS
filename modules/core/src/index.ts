@@ -1,0 +1,52 @@
+export {
+  createWorkspaceForUser,
+  ensureCorePermissionsForWorkspace,
+  isActiveWorkspaceMember,
+  listWorkspacesForUser,
+  type CreateWorkspaceInput,
+  type CreatedWorkspace,
+} from "./workspace.js";
+
+export {
+  createProject,
+  createScope,
+  getProject,
+  getScope,
+  InvalidParentContextError,
+  listProjects,
+  listScopes,
+  type CreatedProject,
+  type CreatedScope,
+  type ProjectSummary,
+  type ScopeSummary,
+} from "./context-entities.js";
+
+export {
+  addTeamMember,
+  createJobRole,
+  createOrganization,
+  createTeam,
+  getWorkspaceRootContextId,
+  listJobRoles,
+  listOrganizations,
+  listPersons,
+  listTeamMembers,
+  listTeams,
+  removeTeamMember,
+} from "./directory.js";
+
+export {
+  addWorkspaceMemberByEmail,
+  LastWorkspaceAdministratorError,
+  listWorkspaceMembers,
+  updateWorkspaceMemberRole,
+  WorkspaceMemberUserNotFoundError,
+  type WorkspaceSystemRole,
+} from "./workspace-members.js";
+
+export {
+  disableWorkspaceModule,
+  enableWorkspaceModule,
+  isWorkspaceModuleEnabled,
+  listWorkspaceModules,
+} from "./module-registry.js";
