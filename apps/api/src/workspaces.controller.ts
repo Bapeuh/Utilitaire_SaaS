@@ -29,6 +29,7 @@ import {
   getScope,
   getWorkspaceRootContextId,
   InvalidParentContextError,
+  isActiveWorkspaceMember,
   LastWorkspaceAdministratorError,
   listJobRoles,
   listOrganizations,
@@ -124,7 +125,14 @@ export class WorkspacesController {
     return session.user;
   }
 
+  private async requireWorkspaceMembership(workspaceId: string, userId: string) {
+    const member = await isActiveWorkspaceMember(apiDatabase, workspaceId, userId);
+    if (!member) throw new NotFoundException();
+  }
+
   private async requireRootPermission(workspaceId: string, userId: string, permissionKey: string) {
+    await this.requireWorkspaceMembership(workspaceId, userId);
+
     let rootContextId: string;
     try {
       rootContextId = await getWorkspaceRootContextId(apiDatabase, workspaceId);
@@ -168,6 +176,7 @@ export class WorkspacesController {
   @Get(":workspaceId/capabilities")
   async capabilities(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
     const user = await this.requireUser(request);
+    await this.requireWorkspaceMembership(workspaceId, user.id);
     const rootContextId = await getWorkspaceRootContextId(apiDatabase, workspaceId).catch(() => null);
     if (!rootContextId) throw new NotFoundException();
     await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
@@ -186,6 +195,7 @@ export class WorkspacesController {
     const user = await this.requireUser(request);
     const name = requireName(body.name, "Scope");
     const parentContextId = requireParentContextId(body.parentContextId);
+    await this.requireWorkspaceMembership(workspaceId, user.id);
     await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const allowed = await hasPermission(apiDatabase, {
       workspaceId,
@@ -206,6 +216,7 @@ export class WorkspacesController {
   @Get(":workspaceId/scopes")
   async listScopes(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
     const user = await this.requireUser(request);
+    await this.requireWorkspaceMembership(workspaceId, user.id);
     await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const scopeRows = await listScopes(apiDatabase, workspaceId);
     const readable = await Promise.all(
@@ -225,6 +236,7 @@ export class WorkspacesController {
   @Get(":workspaceId/scopes/:scopeId")
   async getScope(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Param("scopeId") scopeId: string) {
     const user = await this.requireUser(request);
+    await this.requireWorkspaceMembership(workspaceId, user.id);
     await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const scope = await getScope(apiDatabase, workspaceId, scopeId);
     if (!scope) throw new NotFoundException();
@@ -243,6 +255,7 @@ export class WorkspacesController {
     const user = await this.requireUser(request);
     const name = requireName(body.name, "Project");
     const parentContextId = requireParentContextId(body.parentContextId);
+    await this.requireWorkspaceMembership(workspaceId, user.id);
     await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const allowed = await hasPermission(apiDatabase, {
       workspaceId,
@@ -263,6 +276,7 @@ export class WorkspacesController {
   @Get(":workspaceId/projects")
   async listProjects(@Req() request: Request, @Param("workspaceId") workspaceId: string) {
     const user = await this.requireUser(request);
+    await this.requireWorkspaceMembership(workspaceId, user.id);
     await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const projectRows = await listProjects(apiDatabase, workspaceId);
     const readable = await Promise.all(
@@ -282,6 +296,7 @@ export class WorkspacesController {
   @Get(":workspaceId/projects/:projectId")
   async getProject(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Param("projectId") projectId: string) {
     const user = await this.requireUser(request);
+    await this.requireWorkspaceMembership(workspaceId, user.id);
     await ensureCorePermissionsForWorkspace(apiDatabase, workspaceId);
     const project = await getProject(apiDatabase, workspaceId, projectId);
     if (!project) throw new NotFoundException();
