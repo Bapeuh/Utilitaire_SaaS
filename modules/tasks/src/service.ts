@@ -26,9 +26,9 @@ export class InvalidTaskEstimateError extends Error {}
 export class InvalidTaskAssignmentError extends Error {}
 
 export interface TaskListFilters {
-  contextId?: string;
-  status?: TaskStatus;
-  priority?: TaskPriority;
+  contextId?: string | undefined;
+  status?: TaskStatus | undefined;
+  priority?: TaskPriority | undefined;
 }
 
 export interface TaskMutationContext {
@@ -102,7 +102,7 @@ async function recordTaskMutation(
     contextId: string;
     objectId: string;
     taskId: string;
-    actorUserId?: string | null;
+    actorUserId?: string | null | undefined;
     action: string;
     eventName: string;
     payload?: Record<string, unknown>;
@@ -515,7 +515,7 @@ export async function updateChecklistItem(
   workspaceId: string,
   taskId: string,
   itemId: string,
-  input: { label?: string; isDone?: boolean; position?: number },
+  input: { label?: string | undefined; isDone?: boolean | undefined; position?: number | undefined },
   mutation: TaskMutationContext = {},
 ) {
   return db.transaction(async (tx) => {
