@@ -6,7 +6,7 @@ import {
 } from "@utilitaire/database";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
-import { taskPermissionKeys } from "./index.js";
+import { taskPermissionKeys } from "./contracts.js";
 
 type Database = ReturnType<typeof createDatabase>["db"];
 
