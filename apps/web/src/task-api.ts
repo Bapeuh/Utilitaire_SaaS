@@ -137,7 +137,7 @@ export function addTaskChecklistItem(workspaceId: string, taskId: string, label:
   return request<TaskChecklistItem>(`/api/workspaces/${workspaceId}/tasks/${taskId}/checklist`, { method: "POST", body: JSON.stringify({ label }) });
 }
 
-export function updateTaskChecklistItem(workspaceId: string, taskId: string, itemId: string, input: { label?: string; isDone?: boolean; position?: number }) {
+export function updateTaskChecklistItem(workspaceId: string, taskId: string, itemId: string, input: { label?: string | undefined; isDone?: boolean | undefined; position?: number | undefined }) {
   return request<TaskChecklistItem>(`/api/workspaces/${workspaceId}/tasks/${taskId}/checklist/${itemId}`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
