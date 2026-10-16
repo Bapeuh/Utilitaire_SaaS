@@ -184,6 +184,13 @@ export async function listWorkspaceMembers(workspaceId: string) {
   return request<WorkspaceMemberSummary[]>(`/api/workspaces/${workspaceId}/members`);
 }
 
+export async function addWorkspaceMember(workspaceId: string, email: string, role: WorkspaceRole) {
+  return request<WorkspaceMemberSummary>(`/api/workspaces/${workspaceId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+}
+
 export async function updateWorkspaceMemberRole(workspaceId: string, userId: string, role: WorkspaceRole) {
   return request<unknown>(`/api/workspaces/${workspaceId}/members/${userId}/role`, {
     method: "PATCH",
