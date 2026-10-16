@@ -19,6 +19,12 @@ const timestamps = {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
 };
 
+const mutableTimestamps = {
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+};
+
 export const activities = pgTable(
   "activities",
   {
@@ -158,6 +164,186 @@ export const workspaceModules = pgTable(
   ],
 );
 
+export const comments = pgTable(
+  "comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "restrict" }),
+    objectId: uuid("object_id").notNull(),
+    authorUserId: uuid("author_user_id").notNull(),
+    body: text("body").notNull(),
+    ...mutableTimestamps,
+  },
+  (table) => [
+    unique("comments_workspace_id_id_unique").on(table.workspaceId, table.id),
+    index("comments_object_idx").on(table.workspaceId, table.objectId, table.createdAt),
+    foreignKey({
+      name: "comments_object_workspace_fk",
+      columns: [table.workspaceId, table.objectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "comments_author_workspace_user_fk",
+      columns: [table.workspaceId, table.authorUserId],
+      foreignColumns: [workspaceUsers.workspaceId, workspaceUsers.userId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const files = pgTable(
+  "files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "restrict" }),
+    storageKey: text("storage_key").notNull(),
+    name: text("name").notNull(),
+    mimeType: text("mime_type"),
+    sizeBytes: integer("size_bytes"),
+    uploaderUserId: uuid("uploader_user_id").notNull(),
+    ...mutableTimestamps,
+  },
+  (table) => [
+    unique("files_workspace_id_id_unique").on(table.workspaceId, table.id),
+    unique("files_workspace_storage_key_unique").on(table.workspaceId, table.storageKey),
+    foreignKey({
+      name: "files_uploader_workspace_user_fk",
+      columns: [table.workspaceId, table.uploaderUserId],
+      foreignColumns: [workspaceUsers.workspaceId, workspaceUsers.userId],
+    }).onDelete("restrict"),
+    check("files_size_nonnegative_check", sql`${table.sizeBytes} is null or ${table.sizeBytes} >= 0`),
+  ],
+);
+
+export const fileLinks = pgTable(
+  "file_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "restrict" }),
+    fileId: uuid("file_id").notNull(),
+    objectId: uuid("object_id").notNull(),
+    label: text("label"),
+    ...timestamps,
+  },
+  (table) => [
+    unique("file_links_workspace_file_object_unique").on(table.workspaceId, table.fileId, table.objectId),
+    index("file_links_object_idx").on(table.workspaceId, table.objectId),
+    foreignKey({
+      name: "file_links_file_workspace_fk",
+      columns: [table.workspaceId, table.fileId],
+      foreignColumns: [files.workspaceId, files.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "file_links_object_workspace_fk",
+      columns: [table.workspaceId, table.objectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+    ...mutableTimestamps,
+  },
+  (table) => [
+    unique("tags_workspace_id_id_unique").on(table.workspaceId, table.id),
+    unique("tags_workspace_normalized_name_unique").on(table.workspaceId, table.normalizedName),
+  ],
+);
+
+export const tagLinks = pgTable(
+  "tag_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "restrict" }),
+    tagId: uuid("tag_id").notNull(),
+    objectId: uuid("object_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("tag_links_workspace_tag_object_unique").on(table.workspaceId, table.tagId, table.objectId),
+    index("tag_links_object_idx").on(table.workspaceId, table.objectId),
+    foreignKey({
+      name: "tag_links_tag_workspace_fk",
+      columns: [table.workspaceId, table.tagId],
+      foreignColumns: [tags.workspaceId, tags.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "tag_links_object_workspace_fk",
+      columns: [table.workspaceId, table.objectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const objectRelations = pgTable(
+  "object_relations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "restrict" }),
+    sourceObjectId: uuid("source_object_id").notNull(),
+    targetObjectId: uuid("target_object_id").notNull(),
+    relationType: text("relation_type").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("object_relations_workspace_relation_unique").on(
+      table.workspaceId,
+      table.sourceObjectId,
+      table.targetObjectId,
+      table.relationType,
+    ),
+    index("object_relations_source_idx").on(table.workspaceId, table.sourceObjectId),
+    index("object_relations_target_idx").on(table.workspaceId, table.targetObjectId),
+    foreignKey({
+      name: "object_relations_source_workspace_fk",
+      columns: [table.workspaceId, table.sourceObjectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "object_relations_target_workspace_fk",
+      columns: [table.workspaceId, table.targetObjectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+    check("object_relations_not_self_check", sql`${table.sourceObjectId} <> ${table.targetObjectId}`),
+  ],
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "restrict" }),
+    userId: uuid("user_id").notNull(),
+    sourceObjectId: uuid("source_object_id"),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    data: jsonb("data").$type<Record<string, unknown>>().default({}).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique("notifications_workspace_id_id_unique").on(table.workspaceId, table.id),
+    index("notifications_user_unread_idx").on(table.workspaceId, table.userId, table.readAt, table.createdAt),
+    foreignKey({
+      name: "notifications_workspace_user_fk",
+      columns: [table.workspaceId, table.userId],
+      foreignColumns: [workspaceUsers.workspaceId, workspaceUsers.userId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "notifications_source_object_workspace_fk",
+      columns: [table.workspaceId, table.sourceObjectId],
+      foreignColumns: [objects.workspaceId, objects.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
 export type OutboxEvent = typeof outboxEvents.$inferSelect;
@@ -168,3 +354,17 @@ export type ProcessedEvent = typeof processedEvents.$inferSelect;
 export type NewProcessedEvent = typeof processedEvents.$inferInsert;
 export type WorkspaceModule = typeof workspaceModules.$inferSelect;
 export type NewWorkspaceModule = typeof workspaceModules.$inferInsert;
+export type Comment = typeof comments.$inferSelect;
+export type NewComment = typeof comments.$inferInsert;
+export type FileRecord = typeof files.$inferSelect;
+export type NewFileRecord = typeof files.$inferInsert;
+export type FileLink = typeof fileLinks.$inferSelect;
+export type NewFileLink = typeof fileLinks.$inferInsert;
+export type Tag = typeof tags.$inferSelect;
+export type NewTag = typeof tags.$inferInsert;
+export type TagLink = typeof tagLinks.$inferSelect;
+export type NewTagLink = typeof tagLinks.$inferInsert;
+export type ObjectRelation = typeof objectRelations.$inferSelect;
+export type NewObjectRelation = typeof objectRelations.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
