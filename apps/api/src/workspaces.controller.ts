@@ -15,6 +15,7 @@ import {
 import { getAuthSession } from "@utilitaire/auth";
 import {
   addTeamMember,
+  addWorkspaceMemberByEmail,
   createJobRole,
   createOrganization,
   createProject,
@@ -41,6 +42,7 @@ import {
   listWorkspacesForUser,
   removeTeamMember,
   updateWorkspaceMemberRole,
+  WorkspaceMemberUserNotFoundError,
   type WorkspaceSystemRole,
 } from "@utilitaire/core";
 import { hasPermission } from "@utilitaire/permissions";
@@ -71,6 +73,11 @@ interface EnableModuleBody {
 }
 
 interface WorkspaceMemberRoleBody {
+  role?: unknown;
+}
+
+interface AddWorkspaceMemberBody {
+  email?: unknown;
   role?: unknown;
 }
 
@@ -300,6 +307,27 @@ export class WorkspacesController {
     const user = await this.requireUser(request);
     await this.requireRootPermission(workspaceId, user.id, "core.workspace_member.read");
     return listWorkspaceMembers(apiDatabase, workspaceId);
+  }
+
+  @Post(":workspaceId/members")
+  async addMember(
+    @Req() request: Request,
+    @Param("workspaceId") workspaceId: string,
+    @Body() body: AddWorkspaceMemberBody,
+  ) {
+    const user = await this.requireUser(request);
+    await this.requireRootPermission(workspaceId, user.id, "core.workspace_member.manage");
+    try {
+      return await addWorkspaceMemberByEmail(
+        apiDatabase,
+        workspaceId,
+        requireString(body.email, "email").toLowerCase(),
+        requireWorkspaceRole(body.role),
+      );
+    } catch (error) {
+      if (error instanceof WorkspaceMemberUserNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
   }
 
   @Patch(":workspaceId/members/:userId/role")
