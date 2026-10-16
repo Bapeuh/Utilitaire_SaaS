@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   addTeamMember,
+  addWorkspaceMember,
   createJobRole,
   createOrganization,
   createProject,
@@ -182,8 +183,44 @@ function PeopleSection({ currentUserId, workspace, organizations, teams, jobRole
 
 function WorkspaceMembersPanel({ currentUserId, workspace, members, canManage }: { currentUserId: string; workspace: WorkspaceSummary; members: WorkspaceMemberSummary[]; canManage: boolean }) {
   const queryClient = useQueryClient();
-  const mutation = useMutation({ mutationFn: ({ userId, role }: { userId: string; role: WorkspaceRole }) => updateWorkspaceMemberRole(workspace.id, userId, role), onSuccess: async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["workspace-members", workspace.id] }), queryClient.invalidateQueries({ queryKey: ["workspaces"] }), queryClient.invalidateQueries({ queryKey: ["capabilities", workspace.id] })]); } });
-  return <div className="panel workspace-members-panel"><div className="panel-heading"><div><span className="eyebrow">Accès</span><h2>Membres du workspace</h2><p>Rôles système et droits généraux. Un workspace conserve toujours au moins un administrateur.</p></div></div><div className="workspace-member-list">{members.map((member) => <div className="workspace-member-row" key={member.membershipId}><div className="member-person"><div className="avatar light">{member.name.slice(0, 1).toUpperCase()}</div><div><strong>{member.name}{member.userId === currentUserId ? " (vous)" : ""}</strong><span>{member.email}</span></div></div>{canManage ? <select value={member.role} disabled={mutation.isPending} onChange={(event) => mutation.mutate({ userId: member.userId, role: event.target.value as WorkspaceRole })}>{roleOptions.map((role) => <option key={role} value={role}>{formatRole(role)}</option>)}</select> : <span className="role-badge">{formatRole(member.role)}</span>}</div>)}</div>{mutation.isError && <div className="error-box">Modification impossible. Vérifiez notamment qu’il reste au moins un administrateur.</div>}<div className="permission-legend"><strong>Droits par défaut</strong><span><b>Administrateur</b> : tous les droits Core</span><span><b>Manager</b> : création et gestion opérationnelle, sans gestion des rôles ni des modules</span><span><b>Membre</b> : consultation</span><span><b>Invité</b> : Workspace, Scopes et Projets en lecture seule</span></div></div>;
+  const [email, setEmail] = React.useState("");
+  const [role, setRole] = React.useState<WorkspaceRole>("member");
+
+  const addMutation = useMutation({
+    mutationFn: () => addWorkspaceMember(workspace.id, email.trim(), role),
+    onSuccess: async () => {
+      setEmail("");
+      setRole("member");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["workspace-members", workspace.id] }),
+        queryClient.invalidateQueries({ queryKey: ["persons", workspace.id] }),
+      ]);
+    },
+  });
+
+  const roleMutation = useMutation({
+    mutationFn: ({ userId, role: nextRole }: { userId: string; role: WorkspaceRole }) => updateWorkspaceMemberRole(workspace.id, userId, nextRole),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["workspace-members", workspace.id] }),
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
+        queryClient.invalidateQueries({ queryKey: ["capabilities", workspace.id] }),
+      ]);
+    },
+  });
+
+  return <div className="panel workspace-members-panel">
+    <div className="panel-heading"><div><span className="eyebrow">Accès</span><h2>Membres du workspace</h2><p>Rôles système et droits généraux. Un workspace conserve toujours au moins un administrateur.</p></div></div>
+    {canManage && <form className="workspace-member-add" onSubmit={(event) => { event.preventDefault(); addMutation.mutate(); }}>
+      <input type="email" placeholder="email@exemple.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
+      <select value={role} onChange={(event) => setRole(event.target.value as WorkspaceRole)}>{roleOptions.map((option) => <option key={option} value={option}>{formatRole(option)}</option>)}</select>
+      <button className="small-primary dark" disabled={addMutation.isPending || !email.trim()}>{addMutation.isPending ? "Ajout…" : "Ajouter"}</button>
+    </form>}
+    {addMutation.isError && <div className="error-box">Ajout impossible. Vérifiez que ce compte existe déjà et qu’il n’est pas déjà membre du workspace.</div>}
+    <div className="workspace-member-list">{members.map((member) => <div className="workspace-member-row" key={member.membershipId}><div className="member-person"><div className="avatar light">{member.name.slice(0, 1).toUpperCase()}</div><div><strong>{member.name}{member.userId === currentUserId ? " (vous)" : ""}</strong><span>{member.email}</span></div></div>{canManage ? <select value={member.role} disabled={roleMutation.isPending} onChange={(event) => roleMutation.mutate({ userId: member.userId, role: event.target.value as WorkspaceRole })}>{roleOptions.map((option) => <option key={option} value={option}>{formatRole(option)}</option>)}</select> : <span className="role-badge">{formatRole(member.role)}</span>}</div>)}</div>
+    {roleMutation.isError && <div className="error-box">Modification impossible. Vérifiez notamment qu’il reste au moins un administrateur.</div>}
+    <div className="permission-legend"><strong>Droits par défaut</strong><span><b>Administrateur</b> : tous les droits Core</span><span><b>Manager</b> : création et gestion opérationnelle, sans gestion des rôles ni des modules</span><span><b>Membre</b> : consultation</span><span><b>Invité</b> : Workspace, Scopes et Projets en lecture seule</span></div>
+  </div>;
 }
 
 const roleOptions: WorkspaceRole[] = ["administrator", "manager", "member", "guest"];
