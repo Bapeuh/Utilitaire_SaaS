@@ -35,9 +35,11 @@ export {
 } from "./directory.js";
 
 export {
+  addWorkspaceMemberByEmail,
   LastWorkspaceAdministratorError,
   listWorkspaceMembers,
   updateWorkspaceMemberRole,
+  WorkspaceMemberUserNotFoundError,
   type WorkspaceSystemRole,
 } from "./workspace-members.js";
 
