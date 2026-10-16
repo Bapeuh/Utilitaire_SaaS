@@ -1,6 +1,7 @@
 export {
   createWorkspaceForUser,
   ensureCorePermissionsForWorkspace,
+  isActiveWorkspaceMember,
   listWorkspacesForUser,
   type CreateWorkspaceInput,
   type CreatedWorkspace,
