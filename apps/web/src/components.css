@@ -34,6 +34,35 @@
   gap: 18px;
 }
 
+.workspace-member-add {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 180px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.workspace-member-add input,
+.workspace-member-add select,
+.workspace-member-row select,
+.team-select,
+.member-add-row select {
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  padding: 11px 13px;
+  background: white;
+  color: #18202a;
+  outline: none;
+}
+
+.workspace-member-add input:focus,
+.workspace-member-add select:focus,
+.workspace-member-row select:focus,
+.member-add-row select:focus,
+.team-select:focus {
+  border-color: #667085;
+  box-shadow: 0 0 0 3px rgba(102,112,133,.12);
+}
+
 .workspace-member-list,
 .member-list {
   display: grid;
@@ -50,26 +79,8 @@
   border-bottom: 1px solid #eef1f4;
 }
 
-.workspace-member-row select,
-.team-select,
-.member-add-row select {
-  border: 1px solid #d0d5dd;
-  border-radius: 10px;
-  padding: 11px 13px;
-  background: white;
-  color: #18202a;
-  outline: none;
-}
-
 .workspace-member-row select {
   min-width: 160px;
-}
-
-.workspace-member-row select:focus,
-.member-add-row select:focus,
-.team-select:focus {
-  border-color: #667085;
-  box-shadow: 0 0 0 3px rgba(102,112,133,.12);
 }
 
 .permission-legend {
@@ -223,7 +234,8 @@
 }
 
 @media (max-width: 680px) {
-  .entity-create-form.compact {
+  .entity-create-form.compact,
+  .workspace-member-add {
     grid-template-columns: 1fr;
   }
 
@@ -235,6 +247,9 @@
   }
 
   .workspace-member-row select,
+  .workspace-member-add,
+  .workspace-member-add input,
+  .workspace-member-add select,
   .team-select,
   .member-add-row {
     width: 100%;
