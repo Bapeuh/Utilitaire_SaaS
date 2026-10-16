@@ -58,7 +58,12 @@ export function App() {
 
   const selectedWorkspace = workspacesQuery.data?.find((workspace) => workspace.id === selectedWorkspaceId) ?? null;
   const queryEnabled = Boolean(user && selectedWorkspaceId);
-  const directoryReadEnabled = Boolean(queryEnabled && selectedWorkspace?.role !== "guest");
+  const isGuest = selectedWorkspace?.role === "guest";
+  const directoryReadEnabled = Boolean(queryEnabled && !isGuest);
+
+  React.useEffect(() => {
+    if (isGuest && (section === "people" || section === "modules")) setSection("overview");
+  }, [isGuest, section]);
 
   const capabilitiesQuery = useQuery({ queryKey: ["capabilities", selectedWorkspaceId], queryFn: () => getWorkspaceCapabilities(selectedWorkspaceId!), enabled: queryEnabled });
   const scopesQuery = useQuery({ queryKey: ["scopes", selectedWorkspaceId], queryFn: () => listScopes(selectedWorkspaceId!), enabled: queryEnabled });
@@ -81,6 +86,8 @@ export function App() {
   if (sessionQuery.isLoading) return <div className="center-screen"><div className="spinner" />Chargement…</div>;
   if (!user) return <AuthScreen onSuccess={() => queryClient.invalidateQueries({ queryKey: ["session"] })} />;
 
+  const directoryLoading = directoryReadEnabled && (organizationsQuery.isLoading || teamsQuery.isLoading || jobRolesQuery.isLoading || modulesQuery.isLoading || workspaceMembersQuery.isLoading);
+
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand-block"><div className="brand-mark">U</div><div><strong>Utilitaire</strong><span>SaaS modulaire</span></div></div>
@@ -89,8 +96,8 @@ export function App() {
         <NavButton active={section === "overview"} onClick={() => setSection("overview")}>Vue d’ensemble</NavButton>
         <NavButton active={section === "scopes"} onClick={() => setSection("scopes")}>Scopes</NavButton>
         <NavButton active={section === "projects"} onClick={() => setSection("projects")}>Projets</NavButton>
-        <NavButton active={section === "people"} onClick={() => setSection("people")}>Équipe</NavButton>
-        <NavButton active={section === "modules"} onClick={() => setSection("modules")}>Modules</NavButton>
+        {!isGuest && <NavButton active={section === "people"} onClick={() => setSection("people")}>Équipe</NavButton>}
+        {!isGuest && <NavButton active={section === "modules"} onClick={() => setSection("modules")}>Modules</NavButton>}
       </nav>
       <div className="sidebar-footer">
         <div className="user-card"><div className="avatar">{user.name.slice(0, 1).toUpperCase()}</div><div className="user-meta"><strong>{user.name}</strong><span>{user.email}</span></div></div>
@@ -107,12 +114,12 @@ export function App() {
         capabilities={capabilitiesQuery.data}
         scopes={scopesQuery.data ?? []}
         projects={projectsQuery.data ?? []}
-        organizations={organizationsQuery.data ?? []}
-        teams={teamsQuery.data ?? []}
-        jobRoles={jobRolesQuery.data ?? []}
-        modules={modulesQuery.data ?? []}
-        workspaceMembers={workspaceMembersQuery.data ?? []}
-        loading={capabilitiesQuery.isLoading || scopesQuery.isLoading || projectsQuery.isLoading || organizationsQuery.isLoading || teamsQuery.isLoading || jobRolesQuery.isLoading || modulesQuery.isLoading || workspaceMembersQuery.isLoading}
+        organizations={directoryReadEnabled ? organizationsQuery.data ?? [] : []}
+        teams={directoryReadEnabled ? teamsQuery.data ?? [] : []}
+        jobRoles={directoryReadEnabled ? jobRolesQuery.data ?? [] : []}
+        modules={directoryReadEnabled ? modulesQuery.data ?? [] : []}
+        workspaceMembers={directoryReadEnabled ? workspaceMembersQuery.data ?? [] : []}
+        loading={capabilitiesQuery.isLoading || scopesQuery.isLoading || projectsQuery.isLoading || directoryLoading}
       />}
     </main>
   </div>;
@@ -141,6 +148,7 @@ function NavButton({ active, onClick, children }: React.PropsWithChildren<{ acti
 function SectionContent({ section, currentUserId, workspace, capabilities, scopes, projects, organizations, teams, jobRoles, modules, workspaceMembers, loading }: { section: Section; currentUserId: string; workspace: WorkspaceSummary; capabilities: WorkspaceCapabilities | undefined; scopes: ContextEntitySummary[]; projects: ContextEntitySummary[]; organizations: OrganizationSummary[]; teams: TeamSummary[]; jobRoles: NamedWorkspaceEntity[]; modules: WorkspaceModuleSummary[]; workspaceMembers: WorkspaceMemberSummary[]; loading: boolean }) {
   if (loading) return <div className="center-content"><div className="spinner" />Chargement…</div>;
   const caps = capabilities ?? emptyCapabilities;
+  if (workspace.role === "guest" && (section === "people" || section === "modules")) return <Overview workspace={workspace} scopes={scopes} projects={projects} teams={[]} modules={[]} />;
   if (section === "overview") return <Overview workspace={workspace} scopes={scopes} projects={projects} teams={teams} modules={modules} />;
   if (section === "scopes") return <ContextEntitySection kind="scope" workspace={workspace} scopes={scopes} items={scopes} canCreate={caps["core.scope.create"]} />;
   if (section === "projects") return <ContextEntitySection kind="project" workspace={workspace} scopes={scopes} items={projects} canCreate={caps["core.project.create"]} />;
@@ -154,7 +162,15 @@ const emptyCapabilities: WorkspaceCapabilities = {
 
 function Overview({ workspace, scopes, projects, teams, modules }: { workspace: WorkspaceSummary; scopes: ContextEntitySummary[]; projects: ContextEntitySummary[]; teams: TeamSummary[]; modules: WorkspaceModuleSummary[] }) {
   const enabledModules = modules.filter((module) => module.status === "enabled").length;
-  return <div className="dashboard-grid"><StatCard label="Scopes" value={scopes.length} detail="Périmètres durables" /><StatCard label="Projets" value={projects.length} detail="Initiatives bornées" /><StatCard label="Équipes" value={teams.length} detail="Équipes opérationnelles" /><StatCard label="Modules actifs" value={enabledModules} detail="Fonctions installées" /><StatCard label="Rôle" value={formatRole(workspace.role)} detail="Dans ce workspace" /><div className="panel wide"><div className="panel-heading"><div><span className="eyebrow">Structure</span><h2>Organisation du workspace</h2></div></div><div className="structure-list"><div className="structure-root"><strong>{workspace.name}</strong><span>Workspace racine</span></div>{scopes.map((scope) => <div className="structure-item" key={scope.id}><strong>{scope.name}</strong><span>Scope</span></div>)}{projects.map((project) => <div className="structure-item project" key={project.id}><strong>{project.name}</strong><span>Projet</span></div>)}</div></div></div>;
+  const isGuest = workspace.role === "guest";
+  return <div className="dashboard-grid">
+    <StatCard label="Scopes" value={scopes.length} detail="Périmètres durables" />
+    <StatCard label="Projets" value={projects.length} detail="Initiatives bornées" />
+    {!isGuest && <StatCard label="Équipes" value={teams.length} detail="Équipes opérationnelles" />}
+    {!isGuest && <StatCard label="Modules actifs" value={enabledModules} detail="Fonctions installées" />}
+    <StatCard label="Rôle" value={formatRole(workspace.role)} detail="Dans ce workspace" />
+    <div className="panel wide"><div className="panel-heading"><div><span className="eyebrow">Structure</span><h2>Organisation du workspace</h2></div></div><div className="structure-list"><div className="structure-root"><strong>{workspace.name}</strong><span>Workspace racine</span></div>{scopes.map((scope) => <div className="structure-item" key={scope.id}><strong>{scope.name}</strong><span>Scope</span></div>)}{projects.map((project) => <div className="structure-item project" key={project.id}><strong>{project.name}</strong><span>Projet</span></div>)}</div></div>
+  </div>;
 }
 
 function ContextEntitySection({ kind, workspace, scopes, items, canCreate }: { kind: "scope" | "project"; workspace: WorkspaceSummary; scopes: ContextEntitySummary[]; items: ContextEntitySummary[]; canCreate: boolean }) {
