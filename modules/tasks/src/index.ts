@@ -34,6 +34,7 @@ export interface TaskCreateInput {
   startAt?: Date | null;
   dueAt?: Date | null;
   estimatedMinutes?: number | null;
+  position?: number;
 }
 
 export interface TaskUpdateInput {
@@ -44,4 +45,9 @@ export interface TaskUpdateInput {
   startAt?: Date | null;
   dueAt?: Date | null;
   estimatedMinutes?: number | null;
+  parentTaskId?: string | null;
+  position?: number;
 }
+
+export * from "./permissions.js";
+export * from "./service.js";
