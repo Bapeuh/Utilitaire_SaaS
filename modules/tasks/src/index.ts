@@ -26,27 +26,27 @@ export type TaskEventName = (typeof taskEventNames)[number];
 export interface TaskCreateInput {
   workspaceId: string;
   contextId: string;
-  parentTaskId?: string | null;
+  parentTaskId?: string | null | undefined;
   title: string;
-  description?: string | null;
-  status?: TaskStatus;
-  priority?: TaskPriority | null;
-  startAt?: Date | null;
-  dueAt?: Date | null;
-  estimatedMinutes?: number | null;
-  position?: number;
+  description?: string | null | undefined;
+  status?: TaskStatus | undefined;
+  priority?: TaskPriority | null | undefined;
+  startAt?: Date | null | undefined;
+  dueAt?: Date | null | undefined;
+  estimatedMinutes?: number | null | undefined;
+  position?: number | undefined;
 }
 
 export interface TaskUpdateInput {
-  title?: string;
-  description?: string | null;
-  status?: TaskStatus;
-  priority?: TaskPriority | null;
-  startAt?: Date | null;
-  dueAt?: Date | null;
-  estimatedMinutes?: number | null;
-  parentTaskId?: string | null;
-  position?: number;
+  title?: string | undefined;
+  description?: string | null | undefined;
+  status?: TaskStatus | undefined;
+  priority?: TaskPriority | null | undefined;
+  startAt?: Date | null | undefined;
+  dueAt?: Date | null | undefined;
+  estimatedMinutes?: number | null | undefined;
+  parentTaskId?: string | null | undefined;
+  position?: number | undefined;
 }
 
 export * from "./permissions.js";
