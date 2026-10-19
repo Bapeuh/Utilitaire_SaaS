@@ -16,7 +16,12 @@ import {
 import { getAuthSession } from "@utilitaire/auth";
 import { isActiveWorkspaceMember } from "@utilitaire/core";
 import { hasPermission } from "@utilitaire/permissions";
-import { ensureTaskPermissionsForWorkspace, getTask, type TaskPermissionKey } from "@utilitaire/tasks";
+import {
+  ensureTaskPermissionsForWorkspace,
+  getTask,
+  getTaskByObjectId,
+  type TaskPermissionKey,
+} from "@utilitaire/tasks";
 import {
   addComment,
   addObjectRelation,
@@ -104,6 +109,19 @@ export class TaskTransverseController {
     return task;
   }
 
+  private async requireReadableTaskObject(workspaceId: string, userId: string, objectId: string) {
+    const targetTask = await getTaskByObjectId(apiDatabase, workspaceId, objectId);
+    if (!targetTask) throw new BadRequestException("Relation target must be an active Task in this Workspace");
+    const allowed = await hasPermission(apiDatabase, {
+      workspaceId,
+      userId,
+      contextId: targetTask.contextId,
+      permissionKey: "tasks.task.read",
+    });
+    if (!allowed) throw new ForbiddenException();
+    return targetTask;
+  }
+
   @Get("comments")
   async comments(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Param("taskId") taskId: string) {
     const user = await this.requireUser(request);
@@ -186,18 +204,32 @@ export class TaskTransverseController {
   async relations(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Param("taskId") taskId: string) {
     const user = await this.requireUser(request);
     const task = await this.requireTaskPermission(workspaceId, user.id, taskId, "tasks.task.read");
-    return listObjectRelations(apiDatabase, workspaceId, task.objectId);
+    const rows = await listObjectRelations(apiDatabase, workspaceId, task.objectId);
+    const visible = await Promise.all(rows.map(async (row) => {
+      const otherObjectId = row.sourceObjectId === task.objectId ? row.targetObjectId : row.sourceObjectId;
+      const targetTask = await getTaskByObjectId(apiDatabase, workspaceId, otherObjectId);
+      if (!targetTask) return false;
+      return hasPermission(apiDatabase, {
+        workspaceId,
+        userId: user.id,
+        contextId: targetTask.contextId,
+        permissionKey: "tasks.task.read",
+      });
+    }));
+    return rows.filter((_, index) => visible[index]);
   }
 
   @Post("relations")
   async addRelation(@Req() request: Request, @Param("workspaceId") workspaceId: string, @Param("taskId") taskId: string, @Body() body: RelationBody) {
     const user = await this.requireUser(request);
     const task = await this.requireTaskPermission(workspaceId, user.id, taskId, "tasks.task.update");
+    const targetObjectId = requireString(body.targetObjectId, "targetObjectId");
+    await this.requireReadableTaskObject(workspaceId, user.id, targetObjectId);
     try {
       return await addObjectRelation(apiDatabase, {
         workspaceId,
         sourceObjectId: task.objectId,
-        targetObjectId: requireString(body.targetObjectId, "targetObjectId"),
+        targetObjectId,
         relationType: requireString(body.relationType, "relationType"),
         actorUserId: user.id,
         metadata: optionalMetadata(body.metadata),
