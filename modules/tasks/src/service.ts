@@ -183,6 +183,15 @@ export async function getTask(db: Database, workspaceId: string, taskId: string)
   return getTaskRow(db, workspaceId, taskId);
 }
 
+export async function getTaskByObjectId(db: Database, workspaceId: string, objectId: string) {
+  const [task] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.workspaceId, workspaceId), eq(tasks.objectId, objectId), isNull(tasks.archivedAt)))
+    .limit(1);
+  return task ?? null;
+}
+
 export async function listTasks(db: Database, workspaceId: string, filters: TaskListFilters = {}) {
   const conditions = [eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt)];
   if (filters.contextId) conditions.push(eq(tasks.contextId, filters.contextId));
