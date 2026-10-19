@@ -3,7 +3,6 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { App } from "./App";
-import { TasksIntegration } from "./TasksIntegration";
 import "./styles.css";
 import "./components.css";
 import "./tasks.css";
@@ -58,7 +57,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <App />
-        <TasksIntegration />
       </QueryClientProvider>
     </AppErrorBoundary>
   </React.StrictMode>,
