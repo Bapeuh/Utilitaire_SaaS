@@ -265,10 +265,10 @@ function DetailBlock({ title, children }: React.PropsWithChildren<{ title: strin
 function formatDate(value: string | null) { return value ? new Date(value).toLocaleDateString("fr-FR") : "—"; }
 function dateInput(value: string | null) { return value ? new Date(value).toISOString().slice(0, 10) : ""; }
 function initials(value: string) { return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join(""); }
-function buildContextLabels(workspace: WorkspaceSummary, scopes: ContextEntitySummary[], projects: ContextEntitySummary[]) {
+function buildContextLabels(workspace: WorkspaceSummary, scopes: ContextEntitySummary[], projects: ContextEntitySummary[]): Record<string, string> {
   return Object.fromEntries([
     [workspace.rootContextId, `${workspace.name} — workspace`],
-    ...scopes.map((item) => [item.contextId, `${item.name} — scope`]),
-    ...projects.map((item) => [item.contextId, `${item.name} — projet`]),
+    ...scopes.map((item) => [item.contextId, `${item.name} — scope`] as const),
+    ...projects.map((item) => [item.contextId, `${item.name} — projet`] as const),
   ]);
 }
