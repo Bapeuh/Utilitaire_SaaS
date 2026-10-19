@@ -40,8 +40,9 @@ import {
   type WorkspaceRole,
   type WorkspaceSummary,
 } from "./api";
+import { TasksSection } from "./TasksSection";
 
-type Section = "overview" | "scopes" | "projects" | "people" | "modules";
+type Section = "overview" | "scopes" | "projects" | "tasks" | "people" | "modules";
 
 export function App() {
   const queryClient = useQueryClient();
@@ -96,6 +97,7 @@ export function App() {
         <NavButton active={section === "overview"} onClick={() => setSection("overview")}>Vue d’ensemble</NavButton>
         <NavButton active={section === "scopes"} onClick={() => setSection("scopes")}>Scopes</NavButton>
         <NavButton active={section === "projects"} onClick={() => setSection("projects")}>Projets</NavButton>
+        <NavButton active={section === "tasks"} onClick={() => setSection("tasks")}>Tasks</NavButton>
         {!isGuest && <NavButton active={section === "people"} onClick={() => setSection("people")}>Équipe</NavButton>}
         {!isGuest && <NavButton active={section === "modules"} onClick={() => setSection("modules")}>Modules</NavButton>}
       </nav>
@@ -152,6 +154,7 @@ function SectionContent({ section, currentUserId, workspace, capabilities, scope
   if (section === "overview") return <Overview workspace={workspace} scopes={scopes} projects={projects} teams={teams} modules={modules} />;
   if (section === "scopes") return <ContextEntitySection kind="scope" workspace={workspace} scopes={scopes} items={scopes} canCreate={caps["core.scope.create"]} />;
   if (section === "projects") return <ContextEntitySection kind="project" workspace={workspace} scopes={scopes} items={projects} canCreate={caps["core.project.create"]} />;
+  if (section === "tasks") return <TasksSection workspace={workspace} scopes={scopes} projects={projects} />;
   if (section === "people") return <PeopleSection currentUserId={currentUserId} workspace={workspace} organizations={organizations} teams={teams} jobRoles={jobRoles} workspaceMembers={workspaceMembers} capabilities={caps} />;
   return <ModulesSection workspace={workspace} modules={modules} canManage={caps["core.module.manage"]} />;
 }
