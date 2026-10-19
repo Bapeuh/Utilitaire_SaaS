@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { addWorkspaceMemberByEmail, createWorkspaceForUser } from "@utilitaire/core";
 import { createTask } from "@utilitaire/tasks";
 import { createNotification } from "@utilitaire/transverse";
@@ -75,7 +75,7 @@ beforeEach(() => getAuthSessionMock.mockReset());
 afterAll(async () => apiDatabaseClient.end());
 
 describe("Task transverse API hardening", () => {
-  it("enforces task permissions, tenant isolation and notification user scoping", async () => {
+  it("enforces task permissions, relation visibility, tenant isolation and notification user scoping", async () => {
     const admin = { id: randomUUID(), name: "Transverse Admin", email: `transverse-admin-${randomUUID()}@example.test` };
     const member = { id: randomUUID(), name: "Transverse Member", email: `transverse-member-${randomUUID()}@example.test` };
     const guest = { id: randomUUID(), name: "Transverse Guest", email: `transverse-guest-${randomUUID()}@example.test` };
@@ -108,6 +108,16 @@ describe("Task transverse API hardening", () => {
         { workspaceId: workspaceA.workspaceId, contextId: workspaceA.rootContextId, title: "Task with transverse data" },
         { actorUserId: admin.id },
       );
+      const targetTask = await createTask(
+        apiDatabase,
+        { workspaceId: workspaceA.workspaceId, contextId: workspaceA.rootContextId, title: "Readable relation target" },
+        { actorUserId: admin.id },
+      );
+      const foreignTask = await createTask(
+        apiDatabase,
+        { workspaceId: workspaceB.workspaceId, contextId: workspaceB.rootContextId, title: "Foreign relation target" },
+        { actorUserId: foreign.id },
+      );
       const transverse = new TaskTransverseController();
       const notifications = new NotificationsController();
 
@@ -116,6 +126,16 @@ describe("Task transverse API hardening", () => {
       expect(comment.body).toBe("Member comment");
       await transverse.addTag(request, workspaceA.workspaceId, task.id, { name: "important" });
       expect((await transverse.comments(request, workspaceA.workspaceId, task.id)).map((row) => row.id)).toContain(comment.id);
+
+      const relation = await transverse.addRelation(request, workspaceA.workspaceId, task.id, {
+        targetObjectId: targetTask.objectId,
+        relationType: "related_to",
+      });
+      expect((await transverse.relations(request, workspaceA.workspaceId, task.id)).map((row) => row.id)).toContain(relation.id);
+      await expect(transverse.addRelation(request, workspaceA.workspaceId, task.id, {
+        targetObjectId: foreignTask.objectId,
+        relationType: "related_to",
+      })).rejects.toBeInstanceOf(BadRequestException);
 
       sessionFor(guest);
       await expect(transverse.comments(request, workspaceA.workspaceId, task.id)).rejects.toBeInstanceOf(ForbiddenException);
