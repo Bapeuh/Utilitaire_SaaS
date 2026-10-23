@@ -7,6 +7,9 @@ export type TaskPriority = (typeof taskPriorities)[number];
 export const milestoneStatuses = ["open", "reached", "cancelled"] as const;
 export type MilestoneStatus = (typeof milestoneStatuses)[number];
 
+export const taskDependencyTypes = ["finish_start"] as const;
+export type TaskDependencyType = (typeof taskDependencyTypes)[number];
+
 export const taskPermissionKeys = [
   "tasks.task.create",
   "tasks.task.read",
@@ -30,6 +33,7 @@ export const taskEventNames = [
   "tasks.milestone.updated.v1",
   "tasks.milestone.archived.v1",
   "tasks.task.milestone_changed.v1",
+  "tasks.task.dependency_changed.v1",
 ] as const;
 export type TaskEventName = (typeof taskEventNames)[number];
 
@@ -93,4 +97,11 @@ export interface MilestoneUpdateInput {
   dueAt?: Date | undefined;
   status?: MilestoneStatus | undefined;
   position?: number | undefined;
+}
+
+export interface TaskDependencyCreateInput {
+  workspaceId: string;
+  predecessorTaskId: string;
+  successorTaskId: string;
+  dependencyType?: TaskDependencyType | undefined;
 }
