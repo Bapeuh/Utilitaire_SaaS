@@ -3,9 +3,26 @@ on:
   pull_request:
   push:
     branches: [main]
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://utilitaire:utilitaire@localhost:5432/utilitaire
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: utilitaire
+          POSTGRES_USER: utilitaire
+          POSTGRES_PASSWORD: utilitaire
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U utilitaire -d utilitaire"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -14,5 +31,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @utilitaire/database db:migrate
       - run: node scripts/check-module-boundaries.mjs
       - run: pnpm check
