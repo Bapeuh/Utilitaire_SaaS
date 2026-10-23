@@ -8,7 +8,8 @@ import "./calendar.css";
 
 type CalendarMode = "month" | "week";
 type SelectedItem = { kind: "task"; task: TaskSummary } | { kind: "milestone"; milestone: MilestoneSummary } | null;
-type DragPayload = { kind: "task" | "milestone"; id: string };
+type DragAction = "move" | "resize-start" | "resize-end";
+type DragPayload = { kind: "task" | "milestone"; id: string; action?: DragAction };
 
 export function CalendarSection({
   workspace,
@@ -81,7 +82,13 @@ export function CalendarSection({
 
     const task = tasks.find((item) => item.id === payload.id);
     if (!task) return;
-    taskMutation.mutate({ taskId: task.id, patch: shiftedTaskDates(task, day) });
+    const action = payload.action ?? "move";
+    const patch = action === "resize-start"
+      ? resizedTaskDates(task, day, "start")
+      : action === "resize-end"
+        ? resizedTaskDates(task, day, "end")
+        : shiftedTaskDates(task, day);
+    taskMutation.mutate({ taskId: task.id, patch });
   };
 
   return <div className="calendar-shell">
@@ -104,7 +111,7 @@ export function CalendarSection({
     <div className="calendar-legend">
       <span><i className="legend-task" /> Tâche / période</span>
       <span><i className="legend-milestone" /> Jalon</span>
-      <small>Glissez un élément sur un autre jour pour déplacer sa date. Une période conserve sa durée.</small>
+      <small>Glissez le corps pour déplacer une période. Tirez ses poignées gauche/droite pour modifier le début ou la fin.</small>
     </div>
 
     {(milestonesQuery.isError || taskMutation.isError || milestoneMutation.isError) && <div className="error-box">Une opération du calendrier a échoué.</div>}
@@ -130,21 +137,45 @@ export function CalendarSection({
               key={`m-${milestone.id}`}
               className="calendar-item milestone"
               draggable
-              onDragStart={(event) => setDragData(event, { kind: "milestone", id: milestone.id })}
+              onDragStart={(event) => setDragData(event, { kind: "milestone", id: milestone.id, action: "move" })}
               onClick={() => setSelected({ kind: "milestone", milestone })}
             >
               <span className="calendar-item-dot" />
               <span><strong>{milestone.name}</strong><small>Jalon · {contexts[milestone.contextId] ?? "Contexte"}</small></span>
             </button>)}
-            {taskItems.map((task) => <button
-              key={`t-${task.id}`}
-              className={`calendar-item task status-${task.status}`}
-              draggable
-              onDragStart={(event) => setDragData(event, { kind: "task", id: task.id })}
-              onClick={() => setSelected({ kind: "task", task })}
-            >
-              <span><strong>{task.title}</strong><small>{taskLabel(task, day)} · {durationLabel(task)} · {contexts[task.contextId] ?? "Contexte"}</small></span>
-            </button>)}
+            {taskItems.map((task) => {
+              const period = Boolean(task.startAt && task.dueAt);
+              const isStart = period && sameDay(startOfDay(new Date(task.startAt!)), day);
+              const isEnd = period && sameDay(startOfDay(new Date(task.dueAt!)), day);
+              return <div
+                key={`t-${task.id}`}
+                className={`calendar-item task status-${task.status}${period ? " period" : ""}`}
+                draggable
+                role="button"
+                tabIndex={0}
+                onDragStart={(event) => setDragData(event, { kind: "task", id: task.id, action: "move" })}
+                onClick={() => setSelected({ kind: "task", task })}
+                onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelected({ kind: "task", task }); }}
+              >
+                {isStart && <span
+                  className="calendar-resize-handle start"
+                  draggable
+                  title="Modifier la date de début"
+                  aria-label="Modifier la date de début"
+                  onClick={(event) => event.stopPropagation()}
+                  onDragStart={(event) => { event.stopPropagation(); setDragData(event, { kind: "task", id: task.id, action: "resize-start" }); }}
+                />}
+                <span className="calendar-item-content"><strong>{task.title}</strong><small>{taskLabel(task, day)} · {durationLabel(task)} · {contexts[task.contextId] ?? "Contexte"}</small></span>
+                {isEnd && <span
+                  className="calendar-resize-handle end"
+                  draggable
+                  title="Modifier la date de fin"
+                  aria-label="Modifier la date de fin"
+                  onClick={(event) => event.stopPropagation()}
+                  onDragStart={(event) => { event.stopPropagation(); setDragData(event, { kind: "task", id: task.id, action: "resize-end" }); }}
+                />}
+              </div>;
+            })}
             {!taskItems.length && !milestoneItems.length && <span className="calendar-empty-day">—</span>}
           </div>
         </section>;
@@ -267,6 +298,20 @@ function shiftedTaskDates(task: TaskSummary, targetDay: Date): Parameters<typeof
   }
   if (start) return { startAt: atStartOfDate(targetDay) };
   return { dueAt: atEndOfDate(targetDay) };
+}
+
+function resizedTaskDates(task: TaskSummary, targetDay: Date, edge: "start" | "end"): Parameters<typeof updateTask>[2] {
+  const start = task.startAt ? startOfDay(new Date(task.startAt)) : null;
+  const due = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
+  if (!start || !due) return shiftedTaskDates(task, targetDay);
+
+  if (edge === "start") {
+    const nextStart = targetDay.getTime() > due.getTime() ? due : targetDay;
+    return { startAt: atStartOfDate(nextStart) };
+  }
+
+  const nextDue = targetDay.getTime() < start.getTime() ? start : targetDay;
+  return { dueAt: atEndOfDate(nextDue) };
 }
 
 function taskOccursOn(task: TaskSummary, day: Date) {
