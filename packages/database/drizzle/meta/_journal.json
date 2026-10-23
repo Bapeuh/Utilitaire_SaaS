@@ -64,6 +64,13 @@
       "when": 1792750423394,
       "tag": "0008_mute_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792751465484,
+      "tag": "0009_useful_menace",
+      "breakpoints": true
     }
   ]
 }
