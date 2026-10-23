@@ -41,6 +41,12 @@ importers:
       '@utilitaire/permissions':
         specifier: workspace:*
         version: link:../../packages/permissions
+      '@utilitaire/tasks':
+        specifier: workspace:*
+        version: link:../../modules/tasks
+      '@utilitaire/transverse':
+        specifier: workspace:*
+        version: link:../../packages/transverse
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -115,6 +121,9 @@ importers:
       '@utilitaire/event-bus':
         specifier: workspace:*
         version: link:../../packages/event-bus
+      drizzle-orm:
+        specifier: ^0.44.0
+        version: 0.44.7(kysely@0.29.6)(postgres@3.4.9)
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -137,6 +146,28 @@ importers:
       '@utilitaire/database':
         specifier: workspace:*
         version: link:../../packages/database
+      drizzle-orm:
+        specifier: ^0.44.0
+        version: 0.44.7(kysely@0.29.6)(postgres@3.4.9)
+    devDependencies:
+      eslint:
+        specifier: ^9.0.0
+        version: 9.39.5
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(terser@5.51.2)(tsx@4.23.15)
+
+  modules/tasks:
+    dependencies:
+      '@utilitaire/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@utilitaire/event-bus':
+        specifier: workspace:*
+        version: link:../../packages/event-bus
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(kysely@0.29.6)(postgres@3.4.9)
@@ -268,6 +299,28 @@ importers:
         version: 3.2.7(@types/node@22.20.5)(terser@5.51.2)(tsx@4.23.15)
 
   packages/provider-registry:
+    devDependencies:
+      eslint:
+        specifier: ^9.0.0
+        version: 9.39.5
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(terser@5.51.2)(tsx@4.23.15)
+
+  packages/transverse:
+    dependencies:
+      '@utilitaire/database':
+        specifier: workspace:*
+        version: link:../database
+      '@utilitaire/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      drizzle-orm:
+        specifier: ^0.44.0
+        version: 0.44.7(kysely@0.29.6)(postgres@3.4.9)
     devDependencies:
       eslint:
         specifier: ^9.0.0

@@ -43,6 +43,20 @@
       "when": 1791991436605,
       "tag": "0005_harsh_lethal_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792163123263,
+      "tag": "0006_sudden_sauron",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792164831793,
+      "tag": "0007_violet_celestials",
+      "breakpoints": true
     }
   ]
 }
