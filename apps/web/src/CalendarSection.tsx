@@ -111,7 +111,7 @@ export function CalendarSection({
     <div className="calendar-legend">
       <span><i className="legend-task" /> Tâche / période</span>
       <span><i className="legend-milestone" /> Jalon</span>
-      <small>Glissez le corps pour déplacer une période. Tirez ses poignées gauche/droite pour modifier le début ou la fin.</small>
+      <small>Glissez le corps pour déplacer une tâche. Tirez une poignée pour créer ou modifier sa durée.</small>
     </div>
 
     {(milestonesQuery.isError || taskMutation.isError || milestoneMutation.isError) && <div className="error-box">Une opération du calendrier a échoué.</div>}
@@ -145,11 +145,16 @@ export function CalendarSection({
             </button>)}
             {taskItems.map((task) => {
               const period = Boolean(task.startAt && task.dueAt);
-              const isStart = period && sameDay(startOfDay(new Date(task.startAt!)), day);
-              const isEnd = period && sameDay(startOfDay(new Date(task.dueAt!)), day);
+              const fixedDate = !period && Boolean(task.startAt || task.dueAt);
+              const isStart = period
+                ? sameDay(startOfDay(new Date(task.startAt!)), day)
+                : fixedDate;
+              const isEnd = period
+                ? sameDay(startOfDay(new Date(task.dueAt!)), day)
+                : fixedDate;
               return <div
                 key={`t-${task.id}`}
-                className={`calendar-item task status-${task.status}${period ? " period" : ""}`}
+                className={`calendar-item task status-${task.status}${period ? " period" : ""}${fixedDate ? " resizable" : ""}`}
                 draggable
                 role="button"
                 tabIndex={0}
@@ -160,8 +165,8 @@ export function CalendarSection({
                 {isStart && <span
                   className="calendar-resize-handle start"
                   draggable
-                  title="Modifier la date de début"
-                  aria-label="Modifier la date de début"
+                  title={fixedDate ? "Étendre la tâche vers le début" : "Modifier la date de début"}
+                  aria-label={fixedDate ? "Étendre la tâche vers le début" : "Modifier la date de début"}
                   onClick={(event) => event.stopPropagation()}
                   onDragStart={(event) => { event.stopPropagation(); setDragData(event, { kind: "task", id: task.id, action: "resize-start" }); }}
                 />}
@@ -169,8 +174,8 @@ export function CalendarSection({
                 {isEnd && <span
                   className="calendar-resize-handle end"
                   draggable
-                  title="Modifier la date de fin"
-                  aria-label="Modifier la date de fin"
+                  title={fixedDate ? "Étendre la tâche vers la fin" : "Modifier la date de fin"}
+                  aria-label={fixedDate ? "Étendre la tâche vers la fin" : "Modifier la date de fin"}
                   onClick={(event) => event.stopPropagation()}
                   onDragStart={(event) => { event.stopPropagation(); setDragData(event, { kind: "task", id: task.id, action: "resize-end" }); }}
                 />}
@@ -303,7 +308,17 @@ function shiftedTaskDates(task: TaskSummary, targetDay: Date): Parameters<typeof
 function resizedTaskDates(task: TaskSummary, targetDay: Date, edge: "start" | "end"): Parameters<typeof updateTask>[2] {
   const start = task.startAt ? startOfDay(new Date(task.startAt)) : null;
   const due = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
-  if (!start || !due) return shiftedTaskDates(task, targetDay);
+
+  if (!start || !due) {
+    const fixed = due ?? start;
+    if (!fixed) return {};
+    if (edge === "start") {
+      const nextStart = targetDay.getTime() > fixed.getTime() ? fixed : targetDay;
+      return { startAt: atStartOfDate(nextStart), dueAt: atEndOfDate(fixed) };
+    }
+    const nextDue = targetDay.getTime() < fixed.getTime() ? fixed : targetDay;
+    return { startAt: atStartOfDate(fixed), dueAt: atEndOfDate(nextDue) };
+  }
 
   if (edge === "start") {
     const nextStart = targetDay.getTime() > due.getTime() ? due : targetDay;
