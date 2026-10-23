@@ -97,7 +97,15 @@ export function listTasks(workspaceId: string, filters: { contextId?: string; st
   return request<TaskSummary[]>(`/api/workspaces/${workspaceId}/tasks${suffix}`);
 }
 
-export function createTask(workspaceId: string, input: { contextId: string; title: string; parentTaskId?: string | null }) {
+export function createTask(workspaceId: string, input: {
+  contextId: string;
+  title: string;
+  parentTaskId?: string | null;
+  startAt?: string | null;
+  dueAt?: string | null;
+  status?: TaskStatus;
+  priority?: TaskPriority | null;
+}) {
   return request<TaskSummary>(`/api/workspaces/${workspaceId}/tasks`, { method: "POST", body: JSON.stringify(input) });
 }
 
