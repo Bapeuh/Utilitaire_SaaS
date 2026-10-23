@@ -7,12 +7,13 @@ import {
   taskMilestoneLinks,
   taskMilestones,
   taskPersonAssignments,
+  taskPhases,
   taskTeamAssignments,
   tasks,
   teams,
 } from "@utilitaire/database";
 import { enqueueOutboxEvent, writeActivity } from "@utilitaire/event-bus";
-import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import type { TaskCreateInput, TaskPriority, TaskStatus, TaskUpdateInput } from "./index.js";
 
@@ -323,41 +324,28 @@ export async function moveTaskSubtree(
     if (!root) return null;
     const subtreeIds = await collectSubtree(tx, workspaceId, taskId);
     const rows = await tx
-      .select({ id: tasks.id, objectId: tasks.objectId })
+      .select({ id: tasks.id, objectId: tasks.objectId, phaseId: tasks.phaseId })
       .from(tasks)
       .where(and(eq(tasks.workspaceId, workspaceId), inArray(tasks.id, subtreeIds)));
     const objectIds = rows.map((row) => row.objectId);
+    const phaseIds = rows.map((row) => row.phaseId).filter((id): id is string => Boolean(id));
     const now = new Date();
 
-    const invalidPhaseTaskRows = await tx
-      .select({ id: tasks.id })
-      .from(tasks)
-      .leftJoin(taskMilestones, eq(taskMilestones.id, tasks.phaseId))
-      .where(and(eq(tasks.workspaceId, workspaceId), inArray(tasks.id, subtreeIds)));
-    void invalidPhaseTaskRows;
-
-    await tx
-      .update(tasks)
-      .set({ contextId: targetContextId, updatedAt: now })
-      .where(and(eq(tasks.workspaceId, workspaceId), inArray(tasks.id, subtreeIds)));
-
-    await tx
-      .update(tasks)
-      .set({ phaseId: null, updatedAt: now })
-      .where(and(
-        eq(tasks.workspaceId, workspaceId),
-        inArray(tasks.id, subtreeIds),
-        or(
-          isNull(tasks.phaseId),
-          ne(
-            tasks.phaseId,
-            tx
-              .select({ id: taskMilestones.id })
-              .from(taskMilestones)
-              .where(and(eq(taskMilestones.workspaceId, workspaceId), eq(taskMilestones.contextId, targetContextId))) as never,
-          ),
-        ),
-      ));
+    const validPhaseRows = phaseIds.length
+      ? await tx
+          .select({ id: taskPhases.id })
+          .from(taskPhases)
+          .where(and(
+            eq(taskPhases.workspaceId, workspaceId),
+            inArray(taskPhases.id, phaseIds),
+            eq(taskPhases.contextId, targetContextId),
+            isNull(taskPhases.archivedAt),
+          ))
+      : [];
+    const validPhaseIds = new Set(validPhaseRows.map((row) => row.id));
+    const detachedPhaseTaskIds = rows
+      .filter((row) => row.phaseId && !validPhaseIds.has(row.phaseId))
+      .map((row) => row.id);
 
     const milestoneLinks = await tx
       .select({ id: taskMilestoneLinks.id, milestoneContextId: taskMilestones.contextId })
@@ -374,6 +362,19 @@ export async function moveTaskSubtree(
     const invalidMilestoneLinkIds = milestoneLinks
       .filter((link) => link.milestoneContextId !== targetContextId)
       .map((link) => link.id);
+
+    await tx
+      .update(tasks)
+      .set({ contextId: targetContextId, updatedAt: now })
+      .where(and(eq(tasks.workspaceId, workspaceId), inArray(tasks.id, subtreeIds)));
+
+    if (detachedPhaseTaskIds.length) {
+      await tx
+        .update(tasks)
+        .set({ phaseId: null, updatedAt: now })
+        .where(and(eq(tasks.workspaceId, workspaceId), inArray(tasks.id, detachedPhaseTaskIds)));
+    }
+
     if (invalidMilestoneLinkIds.length) {
       await tx
         .update(taskMilestoneLinks)
@@ -404,6 +405,7 @@ export async function moveTaskSubtree(
         fromContextId: root.contextId,
         toContextId: targetContextId,
         movedTaskIds: subtreeIds,
+        detachedPhaseTaskIds,
         archivedMilestoneLinkIds: invalidMilestoneLinkIds,
       },
     });
@@ -412,6 +414,7 @@ export async function moveTaskSubtree(
       fromContextId: root.contextId,
       toContextId: targetContextId,
       movedTaskIds: subtreeIds,
+      detachedPhaseTaskIds,
       archivedMilestoneLinkIds: invalidMilestoneLinkIds,
     };
   });
