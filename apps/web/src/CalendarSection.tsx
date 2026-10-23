@@ -8,6 +8,7 @@ import "./calendar.css";
 
 type CalendarMode = "month" | "week";
 type SelectedItem = { kind: "task"; task: TaskSummary } | { kind: "milestone"; milestone: MilestoneSummary } | null;
+type DragPayload = { kind: "task" | "milestone"; id: string };
 
 export function CalendarSection({
   workspace,
@@ -26,6 +27,7 @@ export function CalendarSection({
   const [mode, setMode] = React.useState<CalendarMode>("month");
   const [anchor, setAnchor] = React.useState(() => startOfDay(new Date()));
   const [selected, setSelected] = React.useState<SelectedItem>(null);
+  const [dragOverDay, setDragOverDay] = React.useState<string | null>(null);
 
   const milestonesQuery = useQuery({
     queryKey: ["task-milestones", workspace.id, contextId],
@@ -35,7 +37,7 @@ export function CalendarSection({
   const taskMutation = useMutation({
     mutationFn: ({ taskId, patch }: { taskId: string; patch: Parameters<typeof updateTask>[2] }) => updateTask(workspace.id, taskId, patch),
     onSuccess: async (updated) => {
-      setSelected({ kind: "task", task: updated });
+      setSelected((current) => current?.kind === "task" && current.task.id === updated.id ? { kind: "task", task: updated } : current);
       await queryClient.invalidateQueries({ queryKey: ["tasks", workspace.id] });
     },
   });
@@ -43,7 +45,7 @@ export function CalendarSection({
   const milestoneMutation = useMutation({
     mutationFn: ({ milestoneId, dueAt }: { milestoneId: string; dueAt: string }) => updateMilestone(workspace.id, milestoneId, { dueAt }),
     onSuccess: async (updated) => {
-      setSelected({ kind: "milestone", milestone: updated });
+      setSelected((current) => current?.kind === "milestone" && current.milestone.id === updated.id ? { kind: "milestone", milestone: updated } : current);
       await queryClient.invalidateQueries({ queryKey: ["task-milestones", workspace.id] });
     },
   });
@@ -56,6 +58,30 @@ export function CalendarSection({
 
   const move = (direction: -1 | 1) => {
     setAnchor((current) => mode === "month" ? addMonths(current, direction) : addDays(current, direction * 7));
+  };
+
+  const handleDrop = (event: React.DragEvent, day: Date) => {
+    event.preventDefault();
+    setDragOverDay(null);
+    const raw = event.dataTransfer.getData("application/x-utilitaire-calendar");
+    if (!raw) return;
+    let payload: DragPayload;
+    try {
+      payload = JSON.parse(raw) as DragPayload;
+    } catch {
+      return;
+    }
+
+    if (payload.kind === "milestone") {
+      const milestone = milestones.find((item) => item.id === payload.id);
+      if (!milestone) return;
+      milestoneMutation.mutate({ milestoneId: milestone.id, dueAt: atEndOfDate(day) });
+      return;
+    }
+
+    const task = tasks.find((item) => item.id === payload.id);
+    if (!task) return;
+    taskMutation.mutate({ taskId: task.id, patch: shiftedTaskDates(task, day) });
   };
 
   return <div className="calendar-shell">
@@ -75,23 +101,49 @@ export function CalendarSection({
       </div>
     </div>
 
-    {milestonesQuery.isError && <div className="error-box">Impossible de charger les jalons.</div>}
+    <div className="calendar-legend">
+      <span><i className="legend-task" /> Tâche / période</span>
+      <span><i className="legend-milestone" /> Jalon</span>
+      <small>Glissez un élément sur un autre jour pour déplacer sa date. Une période conserve sa durée.</small>
+    </div>
+
+    {(milestonesQuery.isError || taskMutation.isError || milestoneMutation.isError) && <div className="error-box">Une opération du calendrier a échoué.</div>}
 
     <div className={mode === "month" ? "calendar-grid month" : "calendar-grid week"}>
       {visibleDays.map((day) => {
+        const key = dateKey(day);
         const taskItems = tasks.filter((task) => taskOccursOn(task, day));
         const milestoneItems = milestones.filter((milestone) => sameDay(new Date(milestone.dueAt), day));
         const outside = mode === "month" && day.getMonth() !== anchor.getMonth();
         const today = sameDay(day, new Date());
-        return <section key={day.toISOString()} className={`calendar-day${outside ? " outside" : ""}${today ? " today" : ""}`}>
+        const dragOver = dragOverDay === key;
+        return <section
+          key={day.toISOString()}
+          className={`calendar-day${outside ? " outside" : ""}${today ? " today" : ""}${dragOver ? " drag-over" : ""}`}
+          onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverDay(key); }}
+          onDragLeave={() => setDragOverDay((current) => current === key ? null : current)}
+          onDrop={(event) => handleDrop(event, day)}
+        >
           <header><span>{day.toLocaleDateString("fr-FR", { weekday: mode === "week" ? "short" : undefined })}</span><strong>{day.getDate()}</strong></header>
           <div className="calendar-items">
-            {milestoneItems.map((milestone) => <button key={`m-${milestone.id}`} className="calendar-item milestone" onClick={() => setSelected({ kind: "milestone", milestone })}>
+            {milestoneItems.map((milestone) => <button
+              key={`m-${milestone.id}`}
+              className="calendar-item milestone"
+              draggable
+              onDragStart={(event) => setDragData(event, { kind: "milestone", id: milestone.id })}
+              onClick={() => setSelected({ kind: "milestone", milestone })}
+            >
               <span className="calendar-item-dot" />
-              <span><strong>{milestone.name}</strong><small>{contexts[milestone.contextId] ?? "Contexte"}</small></span>
+              <span><strong>{milestone.name}</strong><small>Jalon · {contexts[milestone.contextId] ?? "Contexte"}</small></span>
             </button>)}
-            {taskItems.map((task) => <button key={`t-${task.id}`} className={`calendar-item task status-${task.status}`} onClick={() => setSelected({ kind: "task", task })}>
-              <span><strong>{task.title}</strong><small>{taskLabel(task, day)} · {contexts[task.contextId] ?? "Contexte"}</small></span>
+            {taskItems.map((task) => <button
+              key={`t-${task.id}`}
+              className={`calendar-item task status-${task.status}`}
+              draggable
+              onDragStart={(event) => setDragData(event, { kind: "task", id: task.id })}
+              onClick={() => setSelected({ kind: "task", task })}
+            >
+              <span><strong>{task.title}</strong><small>{taskLabel(task, day)} · {durationLabel(task)} · {contexts[task.contextId] ?? "Contexte"}</small></span>
             </button>)}
             {!taskItems.length && !milestoneItems.length && <span className="calendar-empty-day">—</span>}
           </div>
@@ -126,11 +178,14 @@ function CalendarEditor({
   onSaveMilestone: (milestoneId: string, dueAt: string) => void;
 }) {
   const isTask = selected.kind === "task";
+  const initialTaskMode = isTask && selected.task.startAt ? "period" : "deadline";
+  const [taskMode, setTaskMode] = React.useState<"deadline" | "period">(initialTaskMode);
   const [start, setStart] = React.useState(isTask ? dateValue(selected.task.startAt) : "");
   const [due, setDue] = React.useState(isTask ? dateValue(selected.task.dueAt) : dateValue(selected.milestone.dueAt));
 
   React.useEffect(() => {
     if (selected.kind === "task") {
+      setTaskMode(selected.task.startAt ? "period" : "deadline");
       setStart(dateValue(selected.task.startAt));
       setDue(dateValue(selected.task.dueAt));
     } else {
@@ -139,26 +194,79 @@ function CalendarEditor({
     }
   }, [selected]);
 
+  const durationDays = start && due ? Math.max(1, differenceInCalendarDays(parseDateInput(due), parseDateInput(start)) + 1) : 1;
+
+  const setDuration = (days: number) => {
+    if (!start || !Number.isInteger(days) || days < 1) return;
+    setDue(dateKey(addDays(parseDateInput(start), days - 1)));
+  };
+
   const save = () => {
     if (selected.kind === "task") {
-      onSaveTask(selected.task.id, start ? atStartOfDay(start) : null, due ? atEndOfDay(due) : null);
+      if (taskMode === "deadline") {
+        onSaveTask(selected.task.id, null, due ? atEndOfDay(due) : null);
+      } else {
+        onSaveTask(selected.task.id, start ? atStartOfDay(start) : null, due ? atEndOfDay(due) : null);
+      }
       return;
     }
     if (due) onSaveMilestone(selected.milestone.id, atEndOfDay(due));
   };
 
-  return <aside className="calendar-editor panel">
+  return <aside className="calendar-editor panel" role="dialog" aria-modal="false">
     <div className="calendar-editor-head">
       <div><span className="eyebrow">{selected.kind === "task" ? "Task" : "Milestone"}</span><h3>{selected.kind === "task" ? selected.task.title : selected.milestone.name}</h3></div>
       <button onClick={onClose} aria-label="Fermer">×</button>
     </div>
-    {selected.kind === "task" && <label>Début<input type="date" value={start} onChange={(event) => setStart(event.target.value)} /></label>}
-    <label>{selected.kind === "task" ? "Échéance" : "Date du jalon"}<input type="date" value={due} onChange={(event) => setDue(event.target.value)} required={selected.kind === "milestone"} /></label>
+
+    {selected.kind === "task" && <>
+      <label>Planification
+        <select value={taskMode} onChange={(event) => {
+          const next = event.target.value as "deadline" | "period";
+          setTaskMode(next);
+          if (next === "period" && !start) {
+            const base = due || dateKey(new Date());
+            setStart(base);
+            if (!due) setDue(base);
+          }
+        }}>
+          <option value="deadline">Date fixe / échéance</option>
+          <option value="period">Période / durée</option>
+        </select>
+      </label>
+      {taskMode === "period" && <label>Début<input type="date" value={start} onChange={(event) => {
+        const next = event.target.value;
+        const oldDuration = durationDays;
+        setStart(next);
+        if (next) setDue(dateKey(addDays(parseDateInput(next), oldDuration - 1)));
+      }} /></label>}
+      {taskMode === "period" && <label>Durée (jours)<input type="number" min={1} step={1} value={durationDays} onChange={(event) => setDuration(Number(event.target.value))} /></label>}
+    </>}
+
+    <label>{selected.kind === "task" ? (taskMode === "period" ? "Fin / échéance" : "Date / échéance") : "Date du jalon"}<input type="date" value={due} onChange={(event) => setDue(event.target.value)} required={selected.kind === "milestone"} /></label>
+
     <div className="calendar-editor-actions">
-      <button className="small-primary dark" disabled={busy || (selected.kind === "milestone" && !due)} onClick={save}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
+      <button className="small-primary dark" disabled={busy || (selected.kind === "milestone" && !due) || (selected.kind === "task" && taskMode === "period" && (!start || !due))} onClick={save}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
       {selected.kind === "task" && <button className="small-ghost" onClick={() => onOpenTask(selected.task.id)}>Ouvrir le détail</button>}
     </div>
   </aside>;
+}
+
+function setDragData(event: React.DragEvent, payload: DragPayload) {
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("application/x-utilitaire-calendar", JSON.stringify(payload));
+}
+
+function shiftedTaskDates(task: TaskSummary, targetDay: Date): Parameters<typeof updateTask>[2] {
+  const start = task.startAt ? startOfDay(new Date(task.startAt)) : null;
+  const due = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
+
+  if (start && due) {
+    const duration = differenceInCalendarDays(due, start);
+    return { startAt: atStartOfDate(targetDay), dueAt: atEndOfDate(addDays(targetDay, duration)) };
+  }
+  if (start) return { startAt: atStartOfDate(targetDay) };
+  return { dueAt: atEndOfDate(targetDay) };
 }
 
 function taskOccursOn(task: TaskSummary, day: Date) {
@@ -175,10 +283,16 @@ function taskLabel(task: TaskSummary, day: Date) {
     const due = startOfDay(new Date(task.dueAt));
     if (sameDay(start, due)) return "Journée";
     if (sameDay(start, day)) return "Début";
-    if (sameDay(due, day)) return "Échéance";
+    if (sameDay(due, day)) return "Fin";
     return "En cours";
   }
   return task.startAt ? "Début" : "Échéance";
+}
+
+function durationLabel(task: TaskSummary) {
+  if (!task.startAt || !task.dueAt) return "date fixe";
+  const days = differenceInCalendarDays(startOfDay(new Date(task.dueAt)), startOfDay(new Date(task.startAt))) + 1;
+  return days <= 1 ? "1 jour" : `${days} jours`;
 }
 
 function monthGrid(anchor: Date) {
@@ -198,7 +312,12 @@ function addDays(date: Date, days: number) { const next = new Date(date); next.s
 function addMonths(date: Date, months: number) { return new Date(date.getFullYear(), date.getMonth() + months, 1); }
 function startOfDay(date: Date) { return new Date(date.getFullYear(), date.getMonth(), date.getDate()); }
 function sameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
-function dateValue(value: string | null) { return value ? new Date(value).toISOString().slice(0, 10) : ""; }
-function atStartOfDay(value: string) { return new Date(`${value}T00:00:00`).toISOString(); }
-function atEndOfDay(value: string) { return new Date(`${value}T23:59:59`).toISOString(); }
+function differenceInCalendarDays(a: Date, b: Date) { return Math.round((startOfDay(a).getTime() - startOfDay(b).getTime()) / 86_400_000); }
+function dateKey(value: Date) { return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`; }
+function parseDateInput(value: string) { const [year, month, day] = value.split("-").map(Number); return new Date(year!, month! - 1, day!); }
+function dateValue(value: string | null) { return value ? dateKey(new Date(value)) : ""; }
+function atStartOfDay(value: string) { return atStartOfDate(parseDateInput(value)); }
+function atEndOfDay(value: string) { return atEndOfDate(parseDateInput(value)); }
+function atStartOfDate(value: Date) { const day = startOfDay(value); day.setHours(0, 0, 0, 0); return day.toISOString(); }
+function atEndOfDate(value: Date) { const day = startOfDay(value); day.setHours(23, 59, 59, 999); return day.toISOString(); }
 function formatShortDate(value: Date) { return value.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }); }
