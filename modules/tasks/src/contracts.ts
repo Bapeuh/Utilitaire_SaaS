@@ -17,6 +17,15 @@ export const taskPermissionKeys = [
   "tasks.task.archive",
   "tasks.task.assign",
   "tasks.task.comment",
+  "tasks.task.dependency_manage",
+  "tasks.phase.create",
+  "tasks.phase.read",
+  "tasks.phase.update",
+  "tasks.phase.archive",
+  "tasks.milestone.create",
+  "tasks.milestone.read",
+  "tasks.milestone.update",
+  "tasks.milestone.archive",
 ] as const;
 export type TaskPermissionKey = (typeof taskPermissionKeys)[number];
 
