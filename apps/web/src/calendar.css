@@ -30,7 +30,7 @@
 .calendar-item strong { font-size: 12px; }
 .calendar-item small { margin-top: 2px; font-size: 10px; color: #69717c; }
 .calendar-item-content { min-width: 0; flex: 1; }
-.calendar-item.period { padding-left: 12px; padding-right: 12px; }
+.calendar-item.period, .calendar-item.resizable { padding-left: 12px; padding-right: 12px; }
 .calendar-resize-handle { position: absolute; top: 4px; bottom: 4px; width: 7px; border-radius: 5px; background: rgba(67, 94, 137, .42); cursor: ew-resize; z-index: 2; }
 .calendar-resize-handle:hover { background: rgba(45, 75, 124, .72); }
 .calendar-resize-handle.start { left: 2px; }
