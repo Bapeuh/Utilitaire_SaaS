@@ -10,12 +10,15 @@ import { taskPermissionKeys } from "./contracts.js";
 
 type Database = ReturnType<typeof createDatabase>["db"];
 
-const taskPermissionRows = taskPermissionKeys.map((key) => ({
-  key,
-  moduleKey: "tasks",
-  objectType: "task",
-  action: key.split(".").at(-1)!,
-}));
+const taskPermissionRows = taskPermissionKeys.map((key) => {
+  const [, objectType, action] = key.split(".");
+  return {
+    key,
+    moduleKey: "tasks",
+    objectType: objectType ?? "task",
+    action: action ?? key,
+  };
+});
 
 const rolePermissionKeys = {
   administrator: [...taskPermissionKeys],
@@ -26,6 +29,13 @@ const rolePermissionKeys = {
     "tasks.task.update",
     "tasks.task.assign",
     "tasks.task.comment",
+    "tasks.task.dependency_manage",
+    "tasks.phase.create",
+    "tasks.phase.read",
+    "tasks.phase.update",
+    "tasks.milestone.create",
+    "tasks.milestone.read",
+    "tasks.milestone.update",
   ],
   guest: [],
 } as const;
