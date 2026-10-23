@@ -2,6 +2,7 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { listPersons, listTeams, type ContextEntitySummary, type PersonSummary, type TeamSummary, type WorkspaceSummary } from "./api";
+import { CalendarSection } from "./CalendarSection";
 import {
   addTaskChecklistItem,
   addTaskComment,
@@ -47,7 +48,7 @@ const priorityLabels: Record<TaskPriority, string> = {
 
 const statuses: TaskStatus[] = ["todo", "in_progress", "blocked", "done", "cancelled"];
 const priorities: TaskPriority[] = ["low", "normal", "high", "urgent"];
-type ViewMode = "list" | "kanban";
+type ViewMode = "list" | "kanban" | "calendar";
 type AssignmentIndex = Record<string, TaskAssignmentSummary>;
 
 export function TasksSection({ workspace, scopes, projects }: { workspace: WorkspaceSummary; scopes: ContextEntitySummary[]; projects: ContextEntitySummary[] }) {
@@ -124,6 +125,7 @@ export function TasksSection({ workspace, scopes, projects }: { workspace: Works
         <div className="tasks-view-switch" aria-label="Mode d’affichage">
           <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>Liste</button>
           <button className={view === "kanban" ? "active" : ""} onClick={() => setView("kanban")}>Kanban</button>
+          <button className={view === "calendar" ? "active" : ""} onClick={() => setView("calendar")}>Calendrier</button>
         </div>
       </div>
 
@@ -143,8 +145,9 @@ export function TasksSection({ workspace, scopes, projects }: { workspace: Works
 
       {(createMutation.isError || updateMutation.isError || assignmentIndexQuery.isError) && <div className="error-box">Une opération Tasks a échoué. Réessayez ou rechargez la vue.</div>}
       {tasksQuery.isLoading ? <TaskLoading /> : tasksQuery.isError ? <div className="error-box">Impossible de charger les tâches.</div> : view === "list" ?
-        <TaskList tasks={filteredTasks} selectedTaskId={selectedTaskId} contexts={contexts} onSelect={setSelectedTaskId} onStatus={(task, nextStatus) => updateMutation.mutate({ taskId: task.id, patch: { status: nextStatus } })} /> :
-        <TaskKanban tasks={filteredTasks} selectedTaskId={selectedTaskId} contexts={contexts} assignments={assignmentIndex} persons={personsQuery.data ?? []} teams={teamsQuery.data ?? []} onSelect={setSelectedTaskId} onStatus={(task, nextStatus) => updateMutation.mutate({ taskId: task.id, patch: { status: nextStatus } })} />}
+        <TaskList tasks={filteredTasks} selectedTaskId={selectedTaskId} contexts={contexts} onSelect={setSelectedTaskId} onStatus={(task, nextStatus) => updateMutation.mutate({ taskId: task.id, patch: { status: nextStatus } })} /> : view === "kanban" ?
+        <TaskKanban tasks={filteredTasks} selectedTaskId={selectedTaskId} contexts={contexts} assignments={assignmentIndex} persons={personsQuery.data ?? []} teams={teamsQuery.data ?? []} onSelect={setSelectedTaskId} onStatus={(task, nextStatus) => updateMutation.mutate({ taskId: task.id, patch: { status: nextStatus } })} /> :
+        <CalendarSection workspace={workspace} tasks={filteredTasks} contextId={contextId} contexts={contexts} onSelectTask={setSelectedTaskId} />}
     </section>
 
     {selectedTask && <aside className="task-detail panel open"><TaskDetail task={selectedTask} workspace={workspace} tasks={tasks} persons={personsQuery.data ?? []} teams={teamsQuery.data ?? []} canArchive={canArchive} onClose={() => setSelectedTaskId(null)} /></aside>}
