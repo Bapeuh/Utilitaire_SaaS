@@ -4,13 +4,15 @@ import {
   objects,
   persons,
   taskChecklistItems,
+  taskMilestoneLinks,
+  taskMilestones,
   taskPersonAssignments,
   taskTeamAssignments,
   tasks,
   teams,
 } from "@utilitaire/database";
 import { enqueueOutboxEvent, writeActivity } from "@utilitaire/event-bus";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import type { TaskCreateInput, TaskPriority, TaskStatus, TaskUpdateInput } from "./index.js";
 
@@ -327,10 +329,58 @@ export async function moveTaskSubtree(
     const objectIds = rows.map((row) => row.objectId);
     const now = new Date();
 
+    const invalidPhaseTaskRows = await tx
+      .select({ id: tasks.id })
+      .from(tasks)
+      .leftJoin(taskMilestones, eq(taskMilestones.id, tasks.phaseId))
+      .where(and(eq(tasks.workspaceId, workspaceId), inArray(tasks.id, subtreeIds)));
+    void invalidPhaseTaskRows;
+
     await tx
       .update(tasks)
       .set({ contextId: targetContextId, updatedAt: now })
       .where(and(eq(tasks.workspaceId, workspaceId), inArray(tasks.id, subtreeIds)));
+
+    await tx
+      .update(tasks)
+      .set({ phaseId: null, updatedAt: now })
+      .where(and(
+        eq(tasks.workspaceId, workspaceId),
+        inArray(tasks.id, subtreeIds),
+        or(
+          isNull(tasks.phaseId),
+          ne(
+            tasks.phaseId,
+            tx
+              .select({ id: taskMilestones.id })
+              .from(taskMilestones)
+              .where(and(eq(taskMilestones.workspaceId, workspaceId), eq(taskMilestones.contextId, targetContextId))) as never,
+          ),
+        ),
+      ));
+
+    const milestoneLinks = await tx
+      .select({ id: taskMilestoneLinks.id, milestoneContextId: taskMilestones.contextId })
+      .from(taskMilestoneLinks)
+      .innerJoin(taskMilestones, and(
+        eq(taskMilestones.workspaceId, taskMilestoneLinks.workspaceId),
+        eq(taskMilestones.id, taskMilestoneLinks.milestoneId),
+      ))
+      .where(and(
+        eq(taskMilestoneLinks.workspaceId, workspaceId),
+        inArray(taskMilestoneLinks.taskId, subtreeIds),
+        isNull(taskMilestoneLinks.archivedAt),
+      ));
+    const invalidMilestoneLinkIds = milestoneLinks
+      .filter((link) => link.milestoneContextId !== targetContextId)
+      .map((link) => link.id);
+    if (invalidMilestoneLinkIds.length) {
+      await tx
+        .update(taskMilestoneLinks)
+        .set({ archivedAt: now, updatedAt: now })
+        .where(and(eq(taskMilestoneLinks.workspaceId, workspaceId), inArray(taskMilestoneLinks.id, invalidMilestoneLinkIds)));
+    }
+
     await tx
       .update(tasks)
       .set({ parentTaskId: null, updatedAt: now })
@@ -350,9 +400,20 @@ export async function moveTaskSubtree(
       actorUserId: mutation.actorUserId,
       action: "task.moved",
       eventName: "tasks.task.moved.v1",
-      payload: { fromContextId: root.contextId, toContextId: targetContextId, movedTaskIds: subtreeIds },
+      payload: {
+        fromContextId: root.contextId,
+        toContextId: targetContextId,
+        movedTaskIds: subtreeIds,
+        archivedMilestoneLinkIds: invalidMilestoneLinkIds,
+      },
     });
-    return { taskId, fromContextId: root.contextId, toContextId: targetContextId, movedTaskIds: subtreeIds };
+    return {
+      taskId,
+      fromContextId: root.contextId,
+      toContextId: targetContextId,
+      movedTaskIds: subtreeIds,
+      archivedMilestoneLinkIds: invalidMilestoneLinkIds,
+    };
   });
 }
 
