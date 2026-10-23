@@ -57,6 +57,13 @@
       "when": 1792164831793,
       "tag": "0007_violet_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792750423394,
+      "tag": "0008_mute_vulture",
+      "breakpoints": true
     }
   ]
 }
